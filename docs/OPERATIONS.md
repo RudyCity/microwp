@@ -35,6 +35,8 @@ The smoke script checks 503 for public WordPress/home/admin/media/static/REST an
 
 **Private staging only.** The Worker requires the opt-in `MICROWP_STAGING_MODE=isolated-probe-only` setting and an untracked 64+ character `STAGING_PROBE_KEY` uploaded as a Cloudflare secret. Never paste the key into a URL, source code, GitHub, or public logs. The local key is stored only under ignored `.wrangler/staging-probe.key`.
 
+- `MICROWP_STAGING_URL=https://microwp-alpha-staging.hrudy715.workers.dev bun run staging:probe --sql-bridge` — fixed read-only PHP-WASM → Worker → D1 query → PHP canary; **live PASS**, not a WordPress driver.
+- `MICROWP_STAGING_URL=https://microwp-alpha-staging.hrudy715.workers.dev bun run staging:probe --storage-write-test` — fixed D1 batch snapshot+journal write/replay and cleanup, **live PASS**.
 - `MICROWP_STAGING_URL=https://microwp-alpha-staging.hrudy715.workers.dev bun run staging:probe --storage` — fixed read-only **D1 SQL schema + R2 binding canary**, remote PASS. It never exposes article/user data.
 - `MICROWP_STAGING_URL=https://microwp-alpha-staging.hrudy715.workers.dev bun run staging:probe` — fixed PHP 8.4.27 + PDO SQLite canary; live **PASS**.
 - `MICROWP_STAGING_URL=https://microwp-alpha-staging.hrudy715.workers.dev bun run staging:probe --wordpress` — fixed GET WordPress installer bootstrap; live **FAIL: exceededCpu**. Do not retry repeatedly; an isolated invocation showed approximately 2,010 ms CPU.
@@ -46,12 +48,14 @@ Public WordPress routes remain locked regardless of either canary result. The re
 ## Failure handling and recovery
 
 - Durable Object serializes WordPress requests and only returns success after the corresponding **D1 SQL batch** snapshot is stored, but an abrupt isolate failure can interrupt PHP-side state before snapshot persistence.
-- D1 snapshot chunks are SHA256-verified with a transactional manifest. Missing/corrupt snapshot fails closed; do not replace it with an empty DB.
+- D1 snapshot chunks are SHA256-verified with a transactional manifest. The `microwp_media_delete_journal` table (migration `0002`) records destructive R2 operations atomically with the snapshot and replays them on restart. Missing/corrupt snapshot fails closed; do not replace it with an empty DB.
 - Each site's auth secret is stored privately in the DO when not supplied as a Cloudflare secret; never print or export it through public endpoints.
 - If a legacy DO snapshot exists and D1 is empty, the adapter fails closed rather than starting from an empty database; migrate with an independently verified backup. If a site hits the preview database or media hydration limits, treat it as unsupported and do not change the limit without memory tests.
 - Backup exports, point-in-time recovery rehearsal, atomicity under crash injection, media reconciliation across crash and rollback are **still required**.
 
 See [D1 + R2 storage design](ARCHITECTURE_D1_R2.md) for precise object paths and the distinction between the D1-backed SQLite snapshot bridge and a future native SQL driver.
+
+See the [alpha.4 recovery and direct D1 messaging report](reports/2026-11-05-alpha4-journal-and-d1-bridge.md).
 
 ## Outstanding pre-production validations
 

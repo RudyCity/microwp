@@ -31,7 +31,7 @@ The configuration uses **local D1, Durable Object** request serialization/auth s
 - Upload a small PNG to R2 via WP REST
 - Restart workerd and reuse the same D1/DO/R2 state
 - Verify the post, admin login session and PNG survive
-- Delete the media and verify the R2 object is gone
+- Delete the media and verify the R2 object is gone, and the D1 deletion journal has no pending rows
 
 The test also seeds one non-executable R2 theme stylesheet and verifies it is served by the Worker. The generated test account and state are ignored by Git in `.wrangler/`. The test script deletes only its own `.wrangler/e2e-ci-state` directory, **never** your normal local `.wrangler/state` data.
 

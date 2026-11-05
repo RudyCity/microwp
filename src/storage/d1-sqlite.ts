@@ -7,6 +7,8 @@
  * SQL dispatch to D1. Do not confuse a bridge with a native D1 wpdb driver.
  */
 import {digest,MAX_SQLITE_BYTES,SQLITE_CHUNK_BYTES} from "./sqlite-snapshot";
+import {r2MediaKey,R2_UPLOADS_PREFIX} from "../media";
+import type {MediaR2} from "../types";
 
 export type D1SqlStore = Pick<D1Database,"prepare"|"batch">;
 export const DEFAULT_SITE_ID="microwp:single-site:v1";
@@ -51,25 +53,70 @@ export async function loadD1SQLite(db:D1SqlStore,siteId=DEFAULT_SITE_ID):Promise
  if(offset!==bytes.length||await digest(bytes)!==manifest.sha256)throw new Error("D1 SQLite snapshot SHA256 mismatch");
  return bytes;
 }
-export async function saveD1SQLite(db:D1SqlStore,sqlite:Uint8Array,siteId=DEFAULT_SITE_ID):Promise<D1SnapshotResult>{
+export async function saveD1SQLite(db:D1SqlStore,sqlite:Uint8Array,siteId=DEFAULT_SITE_ID,pendingMediaPaths:readonly string[]=[]):Promise<D1SnapshotResult>{
  const site=safeSite(siteId);
  if(sqlite.length===0||sqlite.length>MAX_SQLITE_BYTES)throw new Error("SQLite snapshot exceeds 8MiB limit");
  const sha=await digest(sqlite);
+ const deletes=normalizePendingMediaPaths(pendingMediaPaths);
  const prior=await db.prepare("SELECT revision,bytes,sha256,parts FROM microwp_db_snapshots WHERE site_id=?").bind(site).first<ManifestRow>();
  if(prior!==null&&!validManifest(prior))throw new Error("Invalid existing D1 SQLite manifest");
- if(prior&&prior.sha256===sha&&prior.bytes===sqlite.length)return {changed:false,sha256:sha};
+ const changed=!prior||prior.sha256!==sha||prior.bytes!==sqlite.length;
+ if(!changed&&deletes.length===0)return {changed:false,sha256:sha};
  const revision=crypto.randomUUID();
  const parts=Math.ceil(sqlite.length/SQLITE_CHUNK_BYTES);
  const commands=[];
- for(let i=0;i<parts;i++){
+ if(changed)for(let i=0;i<parts;i++){
   const begin=i*SQLITE_CHUNK_BYTES;
   const slice=sqlite.slice(begin,Math.min(begin+SQLITE_CHUNK_BYTES,sqlite.length));
   commands.push(db.prepare("INSERT INTO microwp_db_chunks(site_id,revision,part,payload) VALUES(?,?,?,?)").bind(site,revision,i,slice));
  }
- commands.push(db.prepare("INSERT INTO microwp_db_snapshots(site_id,revision,bytes,sha256,parts) VALUES(?,?,?,?,?) ON CONFLICT(site_id) DO UPDATE SET revision=excluded.revision,bytes=excluded.bytes,sha256=excluded.sha256,parts=excluded.parts").bind(site,revision,sqlite.length,sha,parts));
- if(prior)commands.push(db.prepare("DELETE FROM microwp_db_chunks WHERE site_id=? AND revision=?").bind(site,prior.revision));
+ if(changed){
+  commands.push(db.prepare("INSERT INTO microwp_db_snapshots(site_id,revision,bytes,sha256,parts) VALUES(?,?,?,?,?) ON CONFLICT(site_id) DO UPDATE SET revision=excluded.revision,bytes=excluded.bytes,sha256=excluded.sha256,parts=excluded.parts").bind(site,revision,sqlite.length,sha,parts));
+  if(prior)commands.push(db.prepare("DELETE FROM microwp_db_chunks WHERE site_id=? AND revision=?").bind(site,prior.revision));
+ }
+ // Journal entries and the SQLite manifest are committed in the SAME D1 transaction.
+ for(const key of deletes)commands.push(db.prepare("INSERT OR IGNORE INTO microwp_media_delete_journal(site_id,object_key) VALUES(?,?)").bind(site,key));
  // Cloudflare D1's batch API executes the series as one SQLite transaction.
  // On partial or failed writes, old manifest+chunks must remain intact.
  await db.batch(commands);
- return {changed:true,sha256:sha};
+ return {changed,sha256:sha};
+}
+
+/** Validate every path, including those restored from a compromised/corrupt journal. */
+export function normalizePendingMediaPaths(paths:readonly string[]):string[]{
+ if(paths.length>32)throw new Error("Too many pending media deletes");
+ const keys=new Set<string>();
+ for(const path of paths){
+  const key=path.startsWith("/www/")?r2MediaKey(path.slice(4)):null;
+  if(!key)throw new Error("Unsafe pending D1 media delete path");
+  keys.add(key);
+ }
+ return [...keys];
+}
+function validJournalKey(key:unknown):key is string {
+ return typeof key==="string"&&key.startsWith(R2_UPLOADS_PREFIX)&&
+   r2MediaKey("/wp-content/uploads/"+key.slice(R2_UPLOADS_PREFIX.length))===key;
+}
+/** Get persisted deletes. The DO must replay these BEFORE hydrating R2 into PHP-WASM. */
+export async function readD1MediaDeleteJournal(db:D1SqlStore,siteId=DEFAULT_SITE_ID):Promise<string[]>{
+ const site=safeSite(siteId);
+ const result=await db.prepare("SELECT object_key FROM microwp_media_delete_journal WHERE site_id=? ORDER BY object_key ASC LIMIT 33").bind(site).all<{object_key:string}>();
+ if(!result.success||result.results.length>32)throw new Error("Invalid D1 media delete journal");
+ const keys=result.results.map(row=>row.object_key);
+ if(!keys.every(validJournalKey))throw new Error("Unsafe D1 media delete journal entry");
+ return keys;
+}
+/** Idempotent crash-recovery: delete R2 object first; remove the journal row last. */
+export async function drainD1MediaDeleteJournal(db:D1SqlStore,media:MediaR2|undefined,siteId=DEFAULT_SITE_ID):Promise<number>{
+ const site=safeSite(siteId);
+ const pending=await readD1MediaDeleteJournal(db,site);
+ if(pending.length===0)return 0;
+ if(!media?.delete)throw new Error("R2 deletion binding required to replay D1 journal");
+ for(const key of pending){
+  await media.delete(key);
+  // Older alpha media objects were written without the wp-content/ prefix.
+  await media.delete(key.slice(R2_UPLOADS_PREFIX.length));
+  await db.prepare("DELETE FROM microwp_media_delete_journal WHERE site_id=? AND object_key=?").bind(site,key).run();
+ }
+ return pending.length;
 }

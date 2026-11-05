@@ -56,4 +56,6 @@ bun scripts/e2e-wordpress.ts verify
 bun scripts/e2e-wordpress.ts delete
 bun scripts/e2e-wordpress.ts verify
 stop_worker
+# A normal WordPress media delete must leave no crash-recovery journal entries.
+./node_modules/.bin/wrangler d1 execute microwp-local-dev-db --local --config wrangler.durable.jsonc --persist-to "$TEST_STATE" --command "SELECT COUNT(*) AS pending FROM microwp_media_delete_journal;" --json | python -c 'import json,sys; x=json.load(sys.stdin); n=x[0]["results"][0]["pending"]; assert n == 0, f"{n} D1 media operations still pending"; print("PASS D1 media deletion journal is empty after successful requests")'
 echo "PASS microWP local WordPress E2E"

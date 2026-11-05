@@ -5,6 +5,7 @@ import wordpressArchive from "../../generated/wordpress-php.bin";
 import { mountWordPress,type MountStats } from "./zip-files";
 import { wordpressConfig, mayServePreview } from "./config";
 import {flushUploads,hydrateUploads,finalizeUploadDeletes} from "./uploads";
+import {D1_BRIDGE_READINESS_MESSAGE,handleD1BridgeReadinessMessage} from "./d1-message-bridge";
 import type { Env, PhpHandler } from "../types";
 
 const MAX_BODY_BYTES = 1024 * 1024;
@@ -167,4 +168,34 @@ export async function finalizeNativeMedia(env:Env):Promise<number>{
  if(storageUnsafe)throw new Error("Media filesystem already unsafe");
  try{return await finalizeUploadDeletes(env,uploaded,pendingMediaDeletes)}
  catch(error){storageUnsafe=true;throw error}
+}
+
+/** Paths queued during PHP execution; the DO atomically journals them in D1 with its DB image. */
+export function pendingNativeMediaDeletePaths():string[]{
+ return [...pendingMediaDeletes];
+}
+/** D1 journal has finished deleting R2 files. Update the in-memory image without extra R2 calls. */
+export function acknowledgeNativeMediaDeletes():void{
+ for(const path of pendingMediaDeletes)uploaded.delete(path);
+ pendingMediaDeletes.clear();
+}
+
+/**
+ * Private, read-only capability test for PHP->JS async messages reaching a D1 query.
+ * Never accepts PHP code, a SQL statement, a table name, or user arguments.
+ * A real WordPress wpdb adapter requires an independent compatibility/security review.
+ */
+export async function runNativeD1SqlBridgeProbe(env:Env):Promise<{ok:boolean;bridge:"php-wasm-to-worker-d1";d1FromPhp:boolean;phpExitCode:number}>{
+ if(env.MICROWP_STAGING_MODE!=="isolated-probe-only"||!env.DB)throw new Error("Private staging D1 binding required");
+ return oneAtATime(async()=>{
+  const php=await getPHP("https://microwp-private-probe.invalid",env);
+  const stop=php.onMessage(message=>handleD1BridgeReadinessMessage(message,env.DB!));
+  try{
+   const response=await php.run({code:`<?php echo post_message_to_js('${D1_BRIDGE_READINESS_MESSAGE}');`});
+   let result:{ready?:boolean}={};
+   try {result=JSON.parse(new TextDecoder().decode(response.bytes)) as {ready:boolean}}catch{}
+   const ok=response.exitCode===0&&result.ready===true;
+   return {ok,bridge:"php-wasm-to-worker-d1",d1FromPhp:ok,phpExitCode:response.exitCode};
+  }finally{await stop()}
+ });
 }

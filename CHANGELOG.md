@@ -2,6 +2,17 @@
 
 All notable user-visible changes to microWP are documented here.
 
+## [0.2.0-alpha.4] — Recoverable D1 media journal and direct D1 bridge feasibility (2026-11-05)
+
+**Experimental Alpha, production NO-GO.**
+
+- D1 migration `0002_microwp_media_delete_journal.sql`: write validated R2 deletion journal entries atomically with SQLite snapshot chunks/manifest.
+- Replay pending media deletions on Durable Object cold start *before* R2 uploads hydrate into PHP. Remove journal rows only after successful R2 deletion, with idempotent retry after crashes.
+- **62 unit tests** and a full local WordPress end-to-end test PASS; the E2E now confirms no outstanding D1 media-deletion journal after a completed upload/delete workflow.
+- Secret-gated Cloudflare staging checks confirmed D1 transaction + R2 journal replay (HTTP 200), three D1 schema tables, and zero remaining canary journal entries. Public safety smoke **10/10 PASS**.
+- Proved a fixed, read-only, asynchronous **PHP-WASM → JS → D1 → PHP** query roundtrip on actual Cloudflare Workers (HTTP 200). Its strict handler does not accept arbitrary SQL; the native WordPress D1 driver remains future work.
+- Unresolved: `exceededCpu` on full WordPress bootstrap, isolate memory/CPU budget, native D1 wpdb compatibility, upload orphan reconciliation and comprehensive crash/security validation. **NO-GO for production.**
+
 ## [0.2.0-alpha.3] — D1 durable SQLite and R2 wp-content (2026-11-05)
 
 **Experimental Alpha, production NO-GO.**

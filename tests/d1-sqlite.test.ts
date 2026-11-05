@@ -8,6 +8,7 @@ type Cmd={sql:string;args:(string|number|Uint8Array)[]};
 function fixture(){
  const sql=new Database(":memory:");
  sql.exec(readFileSync("migrations/0001_microwp_sqlite_snapshots.sql","utf8"));
+ sql.exec(readFileSync("migrations/0002_microwp_media_delete_journal.sql","utf8"));
  let failOnBatch=-1;
  const d1={
   prepare(query:string){
