@@ -21,3 +21,6 @@ wordpress/
 dist-durable/
 
 /dist-staging/
+
+# Experimental Free-only local preview bundle
+dist-free-preview/

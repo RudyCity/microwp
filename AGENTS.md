@@ -32,3 +32,10 @@ Status: public open-source experimental alpha v0.2.0-alpha.4; staging locked; NO
 - Keep active WordPress `wpdb` on the existing pinned SQLite integration until full direct-D1 SQL equivalence, migrations, rollback and real E2E pass. The Stage-3 `src/php/d1-wpdb/db.php` is an opt-in read-only proof, never automatically mounted.
 - Stage-3 native migration plans are offline only with `productionReady:false` and `remoteExecutionAllowed:false`; never replay generated DDL on a live D1 database without independent review and approval.
 - Do not confuse local Workerd wall timing with actual Cloudflare invocation CPU. Free Workers has a 10ms CPU request budget; do not claim WordPress production-ready without actual CPU/memory proof.
+
+## Free-only user constraint (2026-11-06)
+
+- User explicitly declined all paid Cloudflare use. Do **not** change account plan/billing, increase CPU limits, enable paid resources, or present Workers Paid as a prerequisite for the opted-in Free architecture.
+- Do not claim full native WordPress PHP-WASM works under 10ms CPU on Workers Free; previous real installer failed with `exceededCpu`.
+- Experimental Free-preview code in `src/free-site/` and `wrangler.free-preview.jsonc` is disabled and separated from deployed WordPress staging; no deployment or public WordPress cutover without approval.
+- A trusted WordPress-to-static exporter is still required before the Free preview can represent a real published WordPress site. Static publication is a product tradeoff, not a transparent drop-in equivalent to live wp-admin.

@@ -107,6 +107,16 @@ The CPU/DB critical-path implementation is recorded in [the detailed Stage-3 out
 
 **Production NO-GO persists.** No plan/billing or staging/public route change was made in Stage-3. The existing D1-backed SQLite snapshot adapter remains the active implementation.
 
+## Workers Free only — optional static publishing preview
+
+**No paid plan is required or authorized.** The 10 ms Workers Free CPU limit makes the current full PHP-WASM WordPress bootstrap unsuitable for public requests. An **experimental, disabled-by-default alternative** is now implemented separately:
+
+- `src/index-free.ts` / `src/free-site/public-edge.ts`: publicly readable pre-rendered static pages via Cloudflare ASSETS (no PHP), fixed **read-only native D1 SQL** for the approved published-post index, and bounded R2 `wp-content/uploads/` media GETs. WordPress admin/login/PHP and writes are blocked.
+- `wrangler.free-preview.jsonc`: isolated **local placeholder** D1/R2 bindings, `workers_dev:false`, `MICROWP_FREE_PREVIEW_MODE=disabled` by default, and no increased CPU limit. `migrations_free/` contains only a local demo schema. The existing staging and WordPress runtime remain untouched.
+- `bun run free:build` is a **dry-run only**; `bun run free:dev` launches a disabled local preview. See [Workers Free-only architecture and test instructions](docs/plans/2026-11-06-microwp-workers-free-only-rearchitecture.md).
+
+**Tradeoff:** full WordPress authoring would run offline/local or on a separately arranged compute backend; Cloudflare serves only the published output. A safe real-WordPress static export/publish pipeline is **not implemented yet**. The Free mode is a research prototype, not a ready site or proof of 10 ms Cloudflare CPU fitness. Never deploy or activate it as a replacement for full WordPress without explicitly accepting this architecture.
+
 ## Important production limitations
 
 - WordPress SQLite file writes and Cloudflare D1 snapshot persistence are distinct transactions; crashes in between can lose the latest change. Full crash injection/atomicity validation is **not complete**.

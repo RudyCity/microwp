@@ -2,6 +2,14 @@
 
 All notable user-visible changes to microWP are documented here.
 
+## Unreleased — Workers Free-only read-only publishing prototype (2026-11-06)
+
+- Add separate optional entrypoint and disabled-by-default config for a **Free CPU-budget-focused** public site without PHP-WASM bootstrap per request.
+- Read-only native D1 published-post index uses fixed SQL and bounded data, R2 media reads are safe-key validated and bounded, and public WordPress admin/PHP/write endpoints remain closed.
+- Local-only D1 migration and R2 fixture demonstrated HTTP 200 post index and exact media-byte parity; `wp-admin` and `wp-login.php` returned 404.
+- Separate local D1/R2 namespace, no new billing, no remote resources, no Cloudflare deployment or DNS changes. `free:build` performs only a dry-run.
+- Missing: production-ready trusted WordPress static exporter, public revision publishing/rollback, authenticated admin backend, and actual Cloudflare 10 ms CPU confirmation. **Not production-ready.**
+
 ## [0.2.0-alpha.5] — WordPress CPU investigation and native-D1 migration proof (2026-11-06)
 
 **Experimental Alpha — production NO-GO.**
