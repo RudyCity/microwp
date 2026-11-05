@@ -80,6 +80,16 @@ A secret-protected Cloudflare diagnostic proved that PHP-WASM `post_message_to_j
 
 [View the staging health endpoint](https://microwp-alpha-staging.hrudy715.workers.dev/__microwp/health). WordPress homepage, admin, login, REST routes, media and static assets deliberately return HTTP 503 to public requests. This endpoint is **not a usable WordPress site**. Run `MICROWP_STAGING_URL=https://microwp-alpha-staging.hrudy715.workers.dev bun run staging:smoke` to verify the lock. No custom DNS or production traffic was switched.
 
+## Delegated experimental hardening (unreleased)
+
+Three isolated ChatGPT Delegate workstreams have produced **standalone prototypes only**:
+
+- A strict private D1 SQL protocol (structured SELECT/INSERT, mandatory Worker-owned scope, bound values and bounded responses); **not** a native WordPress wpdb driver.
+- A local, checksum-verified WordPress ZIP/bootstrap profiling script; measured local Bun CPU/RSS **must not** be confused with actual Cloudflare PHP-WASM CPU or isolate memory.
+- A conservative R2 orphan audit module that verifies a D1 snapshot and creates a **dry-run report only**. It requires an exhaustive trusted WordPress media-reference extractor and never deletes any object.
+
+See [multi-chat integration evidence](docs/reports/2026-11-05-microwp-delegate-orchestration.md) and [bootstrap bottleneck report](docs/reports/microwp-bootstrap-profile-and-optimization.md). These prototypes are not wired into public routes, do not change production readiness, and need additional conformance/security tests before activation.
+
 ## Important production limitations
 
 - WordPress SQLite file writes and Cloudflare D1 snapshot persistence are distinct transactions; crashes in between can lose the latest change. Full crash injection/atomicity validation is **not complete**.

@@ -2,6 +2,14 @@
 
 All notable user-visible changes to microWP are documented here.
 
+## Unreleased — Delegate-orchestrated experimental modules (2026-11-05)
+
+- Prototype strict, private, versioned SELECT/INSERT D1 SQL protocol with Worker-owned scope, parameterized SQL and 9 tests; **not a native WordPress wpdb driver**.
+- Add bounded, SHA-verified local WordPress ZIP bootstrap profiler and diagnostic report; does not measure deployed Cloudflare WordPress execution.
+- Add dry-run R2 orphan audit using verified D1 snapshot and exhaustive external media-reference evidence, with 13 fail-closed tests; no automatic deletion.
+- Clarify D1+R2 and safe multi-chat delegation instructions in `AGENTS.md`.
+- Production status unchanged: **NO-GO**, no public WordPress routes enabled.
+
 ## [0.2.0-alpha.4] — Recoverable D1 media journal and direct D1 bridge feasibility (2026-11-05)
 
 **Experimental Alpha, production NO-GO.**
