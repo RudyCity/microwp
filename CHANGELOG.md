@@ -20,7 +20,7 @@ All notable user-visible changes to microWP are documented here.
 ### Known blockers for production
 
 - Abrupt crash injection and atomic commit across PHP SQLite and Durable Object state not validated.
-- Cloudflare account authentication for real staging, R2 bucket provision, live CPU/memory telemetry unavailable.
+- Locked Cloudflare staging is now deployed with a dedicated R2 bucket, and eight public safety smoke checks pass. Remote PHP-WASM execution and live CPU/memory telemetry are still **unverified**.
 - 8 MiB SQLite snapshot cap, 32 media objects and 16 MiB media hydration cap are experimental limits.
 - Plugin compatibility, multipart upload and rich media transformations, authentication abuse testing, backup/restore drills, rate limiting and Cloudflare WAF not completed.
 - External WordPress/public routes are blocked and should remain so until independent security sign-off.

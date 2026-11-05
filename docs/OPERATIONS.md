@@ -2,6 +2,10 @@
 
 **Alpha only**. The current Worker does not serve public WordPress admin or content. Never treat a successful dry-run as deployment or a green CI run as production approval.
 
+> **Staging verification (2026-11-05):** Wrangler OAuth now works. An isolated R2 bucket `microwp-alpha-staging-media` was created in APAC and the `microwp-alpha-staging` Worker was deployed to `https://microwp-alpha-staging.hrudy715.workers.dev`. Eight public-route smoke checks pass: health 200, WordPress homepage/admin/login/REST/static/media 503, and config 403 (Cloudflare block). No DNS or existing R2 buckets changed. **This is a locked public staging gateway, not a production WordPress deployment or remote PHP benchmark.**
+
+
+
 ## Local acceptance
 
 ```bash
@@ -17,15 +21,15 @@ bun run production:preflight
 
 The last command **must fail today**, because production gates are not proven.
 
-## Cloudflare staging
+## Cloudflare staging (deployed, locked)
 
-1. Sign into the correct Cloudflare account in an interactive terminal: `bunx wrangler login`, then verify identity with `bunx wrangler whoami` (do not disclose or paste credentials).
-2. Provision an isolated experimental R2 bucket `microwp-alpha-staging-media`, if permitted, and review Durable Object provisioning/billing.
+1. Confirm authentication with `bunx wrangler whoami` (do not disclose or paste credentials).
+2. Use the isolated experimental R2 bucket `microwp-alpha-staging-media` already provisioned. Do not modify any unrelated bucket.
 3. Review `wrangler.staging.jsonc`. It enables a publicly reachable Worker endpoint but **blocks all WordPress dynamic routes and uploaded media outside localhost**. No production custom routes or DNS are configured.
-4. Deploy to isolated test staging only, after access and billing approval: `bunx wrangler deploy --config wrangler.staging.jsonc`.
-5. Set `MICROWP_STAGING_URL` to the verified workers.dev HTTPS endpoint, then run `bun run staging:smoke`.
+4. Deploy updates to this isolated test staging only, after reviewing the diff: `bunx wrangler deploy --config wrangler.staging.jsonc`.
+5. Set `MICROWP_STAGING_URL=https://microwp-alpha-staging.hrudy715.workers.dev`, then run `bun run staging:smoke`.
 
-The smoke script checks 503 for public WordPress/home/admin/media and 404 for secret config. It is **not** a WordPress production test because the public runtime is intentionally disabled.
+The smoke script checks 503 for public WordPress/home/admin/media/static/REST and accepts 403 or 404 for secret config (the Cloudflare edge can return 403). It is **not** a WordPress production test because the public runtime is intentionally disabled.
 
 ## Failure handling and recovery
 

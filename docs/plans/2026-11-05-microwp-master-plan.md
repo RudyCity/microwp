@@ -1,3 +1,5 @@
+> **Cloudflare staging update (2026-11-05):** Wrangler OAuth authenticated; isolated R2 bucket and staging Worker are deployed. Public-route smoke tests pass (WordPress dynamic/static/media blocked). Real Cloudflare PHP-WASM memory/CPU and crash consistency remain unverified; production **NO-GO**.
+
 # microWP Master Plan — 2026-11-05
 
 > **2026-11-05 alpha update:** Local WordPress install, authenticated admin, publish/edit posts, REST upload/delete PNG, normal process restart, persistent admin cookie, and R2 read-after-restart now pass end-to-end under `bun run e2e:local`. Public Cloudflare staging and live CPU/memory remain blocked; Wrangler CLI auth is expired. This update supersedes earlier pending local-E2E descriptions below. Production remains **NO-GO**.

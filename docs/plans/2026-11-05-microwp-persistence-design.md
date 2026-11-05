@@ -1,3 +1,5 @@
+> **Cloudflare staging update (2026-11-05):** Live locked staging uses a newly created R2 bucket. All public WordPress and media routes remain blocked. DO migration deployed, but PHP-WASM and durable persistence are not exercised remotely because public dynamic access is deliberately disabled.
+
 # microWP SQLite Durable Object persistence architecture (experimental)
 
 > **Alpha E2E update (2026-11-05):** The media hydration implementation and WordPress-authenticated PNG upload, serve, restart, and delete have now passed **local workerd** tests. Normal restart also retains the authenticated session and published/edited posts. This does not close the crash consistency gap or constitute a live Cloudflare validation.

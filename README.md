@@ -71,10 +71,14 @@ HTTP request
 
 Limits are intentionally conservative: **8 MiB** per SQLite snapshot; **32 files** and **16 MiB** per cold-start R2 media hydration. The source is packaged in a Worker module; theme/plugin writes are disabled. Native page caching is off pending safe invalidation.
 
+## Live Cloudflare staging (locked)
+
+[View the staging health endpoint](https://microwp-alpha-staging.hrudy715.workers.dev/__microwp/health). WordPress homepage, admin, login, REST routes, media and static assets deliberately return HTTP 503 to public requests. This endpoint is **not a usable WordPress site**. Run `MICROWP_STAGING_URL=https://microwp-alpha-staging.hrudy715.workers.dev bun run staging:smoke` to verify the lock. No custom DNS or production traffic was switched.
+
 ## Important production limitations
 
 - WordPress SQLite file writes and Durable Object storage snapshots are distinct transactions; crashes in between can lose the latest change. Full crash injection/atomicity validation is **not complete**.
-- Cloudflare live staging (with privately configured account resources), CPU time, and peak **128 MiB** isolate memory are **not verified**. The CLI credential has not been available to the development session.
+- Locked Cloudflare staging gateway is **deployed**, and public route safety smoke tests pass. Actual PHP-WASM execution, CPU time, and peak **128 MiB** isolate memory **in the Cloudflare production runtime** are **not verified**.
 - No production-grade backup/restore drills, rate limiting, WAF, plugin compatibility audit, cross-site auth testing, or complete image transformation/media stress tests.
 - No public WordPress functionality is enabled. Static/staging safety checks cannot substitute for application and operational review.
 
