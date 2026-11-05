@@ -19,3 +19,5 @@ wordpress/
 *.log
 .DS_Store
 dist-durable/
+
+/dist-staging/

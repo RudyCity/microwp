@@ -1,28 +1,59 @@
 import {describe,expect,test} from "bun:test";
-import {flushUploads} from "../src/php/uploads";
+import {flushUploads,hydrateUploads} from "../src/php/uploads";
 import type {Env} from "../src/types";
-function fixture() {
- const paths:Record<string,Uint8Array>={
-   "/www/wp-content/uploads/2026/11/photo.png":new Uint8Array([137,80,78,71,13,10,26,10,1,2,3,4])
- };
- const uploaded:string[]=[];
+
+const PNG=new Uint8Array([137,80,78,71,13,10,26,10,1,2,3,4]);
+const key="2026/11/photo.png",filepath="/www/wp-content/uploads/"+key;
+function fixture(){
+ const files:Record<string,Uint8Array>={[filepath]:PNG.slice()};
+ const written:string[]=[],deleted:string[]=[];
+ const r2=new Map<string,Uint8Array>();
+ const env:Env={MEDIA:{
+  async get(k){const value=r2.get(k);return value?{body:new ReadableStream({start(c){c.enqueue(value);c.close()}}),etag:"test",size:value.length}:null;},
+  async put(k,body){r2.set(k,new Uint8Array(body as Uint8Array));written.push(k);},
+  async list(){return {objects:[...r2].map(([k,v])=>({key:k,size:v.length})),truncated:false}},
+  async delete(k){deleted.push(k);r2.delete(k)}
+ }};
  const php={
-   isDir:(p:string)=>p==="/www/wp-content/uploads"||p==="/www/wp-content/uploads/2026"||p==="/www/wp-content/uploads/2026/11",
-   isFile:(p:string)=>Boolean(paths[p]),
-   listFiles:(p:string)=>p.endsWith("/uploads")?["2026"]:p.endsWith("/2026")?["11"]:["photo.png"],
-   readFileAsBuffer:(p:string)=>paths[p]
+  isDir:(p:string)=>p==="/www/wp-content/uploads"||p==="/www/wp-content/uploads/2026"||p==="/www/wp-content/uploads/2026/11",
+  isFile:(p:string)=>Boolean(files[p]),
+  listFiles:(p:string)=>p.endsWith("/uploads")?["2026"]:p.endsWith("/2026")?["11"]:Object.keys(files).length?["photo.png"]:[],
+  readFileAsBuffer:(p:string)=>files[p],
+  mkdir:(_p:string)=>undefined,
+  writeFile:(p:string,contents:Uint8Array)=>{files[p]=contents;}
  };
- const env:Env={MEDIA:{async get(){return null},async put(key){uploaded.push(key)}}};
- return {php,env,uploaded};
+ return {php,env,written,deleted,r2,files};
 }
-describe("WP uploads write-through",()=>{
- test("uploads to R2 and skips unchanged files",async()=>{
-   const f=fixture();const journal=new Map<string,string>();
-   expect(await flushUploads(f.php,f.env,journal)).toBe(1);
-   expect(f.uploaded).toEqual(["2026/11/photo.png"]);
-   expect(await flushUploads(f.php,f.env,journal)).toBe(0);
+describe("WordPress R2 write-through and cold-start rehydration",()=>{
+ test("writes file, skips duplicate digest, rehydrates on new isolate",async()=>{
+   const f=fixture();const old=new Map<string,string>();
+   expect(await flushUploads(f.php,f.env,old)).toBe(1);
+   expect(f.written).toEqual([key]);
+   expect(await flushUploads(f.php,f.env,old)).toBe(0);
+   const next=fixture();next.r2.set(key,PNG.slice());
+   delete next.files[filepath];
+   const replay=new Map<string,string>();
+   expect(await hydrateUploads(next.php,next.env,replay)).toBe(1);
+   expect(next.files[filepath]).toEqual(PNG);
+   expect(await flushUploads(next.php,next.env,replay)).toBe(0);
  });
- test("no R2 fails closed",async()=>{
+ test("remove stale object after WordPress deletes local media",async()=>{
+   const f=fixture();const uploaded=new Map<string,string>();
+   await flushUploads(f.php,f.env,uploaded);
+   delete f.files[filepath];
+   expect(await flushUploads(f.php,f.env,uploaded)).toBe(1);
+   expect(f.deleted).toEqual([key]);
+   expect(f.r2.has(key)).toBe(false);
+ });
+ test("no R2 fails closed on new upload",async()=>{
    const f=fixture();await expect(flushUploads(f.php,{},new Map())).rejects.toThrow("R2 binding required");
+ });
+ test("corrupt object fails closed on rehydration",async()=>{
+   const f=fixture();f.r2.set(key,new Uint8Array([1,2,3,4]));
+   await expect(hydrateUploads(f.php,f.env,new Map())).rejects.toThrow("Corrupt R2");
+ });
+ test("oversized listing fails closed without downloading",async()=>{
+   const f=fixture();f.env.MEDIA!.list=async()=>({objects:Array.from({length:33},(_,i)=>({key:`${i}.png`,size:PNG.length})),truncated:true});
+   await expect(hydrateUploads(f.php,f.env,new Map())).rejects.toThrow("32 files");
  });
 });

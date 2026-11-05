@@ -17,6 +17,8 @@ export interface MediaR2 {
     body: ReadableStream | ArrayBuffer | Uint8Array,
     options: { httpMetadata: { contentType: string; cacheControl: string } }
   ): Promise<unknown>;
+  list?(options: {prefix: string;limit: number}): Promise<{objects: Array<{key: string;size: number}>;truncated: boolean}>;
+  delete?(key:string):Promise<void>;
 }
 export interface ServiceBinding { fetch(request: Request): Promise<Response> }
 export interface Env {

@@ -2,11 +2,11 @@ import {inflateSync} from "fflate";
 import type {PHP} from "@php-wasm/universal";
 
 export interface ZipEntry {name:string;compression:0|8;offset:number;compressed:number;size:number}
-const MAX_FILES=4096,MAX_TOTAL=32*1024*1024,MAX_FILE=1024*1024;
+const MAX_FILES=4096,MAX_TOTAL=40*1024*1024,MAX_FILE=1024*1024;
 function u16(b:DataView,i:number){return b.getUint16(i,true)}
 function u32(b:DataView,i:number){return b.getUint32(i,true)}
 function validName(name:string):boolean {
-  return name.endsWith(".php")&&!name.startsWith("/")&&!name.includes("\\")&&!name.includes("//")&&
+  return /\.(?:php|json|css|html|txt|xml)$/.test(name)&&!name.startsWith("/")&&!name.includes("\\")&&!name.includes("//")&&
     name.split("/").every(p=>p && p!==".." && p!=="." && !p.startsWith("."));
 }
 /** Central directory parser; reads no file payload until PHP includes that file. */
@@ -49,7 +49,7 @@ export function inflateEntry(archive:Uint8Array,entry:ZipEntry):Uint8Array {
 export interface MountStats {files:number;bytes:number;elapsedMs:number;loadedFiles:number;loadedBytes:number}
 /**
  * Proper Emscripten MEMFS mount with lazy file read streams.
- * Small metadata nodes exist eagerly; PHP bytes are inflated on first FS.read.
+ * Small metadata nodes exist eagerly; PHP and WordPress template/CSS bytes inflate on first FS.read.
  * The archive is immutable; code writes must never modify installed WP sources.
  */
 export async function mountWordPress(php:PHP,archive:Uint8Array):Promise<MountStats> {

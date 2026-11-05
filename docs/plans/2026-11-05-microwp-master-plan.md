@@ -1,5 +1,7 @@
 # microWP Master Plan — 2026-11-05
 
+> **2026-11-05 alpha update:** Local WordPress install, authenticated admin, publish/edit posts, REST upload/delete PNG, normal process restart, persistent admin cookie, and R2 read-after-restart now pass end-to-end under `bun run e2e:local`. Public Cloudflare staging and live CPU/memory remain blocked; Wrangler CLI auth is expired. This update supersedes earlier pending local-E2E descriptions below. Production remains **NO-GO**.
+
 ## Milestone reached: WordPress local runtime works; PRODUCTION NO-GO
 
 - WordPress 7.1.4 ZIP pinned by SHA256 a147146c159362778ecbbbfb07bb20ddf4e85b130f971c824e656a8f938c5f87.

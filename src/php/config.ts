@@ -19,6 +19,8 @@ define('DB_PATH', '/private/microwp.sqlite');
 define('SQLITE_JOURNAL_MODE','delete');
 define('WP_HOME',${QUOTE(home)});
 define('WP_SITEURL',${QUOTE(home)});
+ini_set('display_errors','0');
+ini_set('html_errors','0');
 define('WP_DEBUG',false);
 define('WP_DEBUG_DISPLAY',false);
 define('WP_MEMORY_LIMIT','64M');

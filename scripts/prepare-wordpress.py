@@ -17,7 +17,11 @@ sha=hashlib.sha256(SOURCE.read_bytes()).hexdigest()
 if sha!=PIN:raise SystemExit(f"WordPress archive SHA256 mismatch: {sha}")
 if hashlib.sha256(SQLITE.read_bytes()).hexdigest()!=SQLITE_PIN:raise SystemExit("SQLite plugin SHA256 mismatch")
 DEST.parent.mkdir(parents=True,exist_ok=True)
-php_count=assets=skipped=0
+php_count=assets=skipped=metadata_count=0
+PHP_FS_METADATA={".json",".css",".html",".txt",".xml"}
+def runtime_metadata(relative,path):
+    if relative=="wp-admin/css/view-transitions.min.css":return True
+    return path.suffix.lower() in PHP_FS_METADATA and relative.startswith(("wp-includes/","wp-content/themes/","wp-content/plugins/"))
 with zipfile.ZipFile(SOURCE) as src,zipfile.ZipFile(DEST,"w",zipfile.ZIP_DEFLATED,compresslevel=7) as core:
     for file in src.infolist():
         if file.is_dir():continue
@@ -32,6 +36,9 @@ with zipfile.ZipFile(SOURCE) as src,zipfile.ZipFile(DEST,"w",zipfile.ZIP_DEFLATE
             core.writestr(relative,src.read(file))
             php_count+=1
         elif path.suffix.lower() in ALLOWED and (relative.startswith(("wp-includes/","wp-admin/","wp-content/")) or relative in ("robots.txt","favicon.ico")):
+            if runtime_metadata(relative,path):
+                core.writestr(relative,src.read(file))
+                metadata_count+=1
             target=PUBLIC/path
             target.parent.mkdir(parents=True,exist_ok=True)
             target.write_bytes(src.read(file))
@@ -51,6 +58,6 @@ with zipfile.ZipFile(SOURCE) as src,zipfile.ZipFile(DEST,"w",zipfile.ZIP_DEFLATE
             elif Path(name).suffix.lower() in ALLOWED:
                 target=PUBLIC/relative;target.parent.mkdir(parents=True,exist_ok=True)
                 target.write_bytes(sqlite.read(pluginfile));assets+=1
-manifest={"version":"7.1.4","official_zip_sha256":sha,"php_files":php_count,"static_assets":assets,"skipped":skipped,"php_archive_bytes":DEST.stat().st_size,"php_archive_sha256":hashlib.sha256(DEST.read_bytes()).hexdigest()}
+manifest={"version":"7.1.4","official_zip_sha256":sha,"php_files":php_count,"php_fs_metadata":metadata_count,"static_assets":assets,"skipped":skipped,"php_archive_bytes":DEST.stat().st_size,"php_archive_sha256":hashlib.sha256(DEST.read_bytes()).hexdigest()}
 (DEST.parent/"wordpress-manifest.json").write_text(json.dumps(manifest,indent=2)+"\n",encoding="utf-8")
 print(json.dumps(manifest,indent=2))

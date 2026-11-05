@@ -13,8 +13,8 @@ describe("lazy WordPress ZIP filesystem",()=>{
    const bad=zipSync({"../evil.php":strToU8("<?php evil();")});
    expect(()=>indexZip(bad)).toThrow("unsafe");
  });
- test("rejects non-PHP code in executable archive",()=>{
-   const bad=zipSync({"secret.txt":strToU8("secret")});
+ test("rejects unsupported files in executable archive",()=>{
+   const bad=zipSync({"secret.js":strToU8("secret")});
    expect(()=>indexZip(bad)).toThrow("unsafe");
  });
  test("rejects corrupted archives",()=>{

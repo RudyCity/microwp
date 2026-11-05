@@ -4,7 +4,7 @@ import phpWasmModule from "../../node_modules/@php-wasm/web-8-4/asyncify/8_4_27/
 import wordpressArchive from "../../generated/wordpress-php.bin";
 import { mountWordPress,type MountStats } from "./zip-files";
 import { wordpressConfig, mayServePreview } from "./config";
-import {flushUploads} from "./uploads";
+import {flushUploads,hydrateUploads} from "./uploads";
 import type { Env, PhpHandler } from "../types";
 
 const MAX_BODY_BYTES = 1024 * 1024;
@@ -39,7 +39,7 @@ function oneAtATime<T>(work:()=>Promise<T>):Promise<T> {
 }
 function guardedHeaders(request:Request):Record<string,string> {
   const out:Record<string,string>={};
-  for (const key of ["Host","Accept","Accept-Language","Content-Type","Cookie","User-Agent","X-Requested-With","Referer"]) {
+  for (const key of ["Host","Accept","Accept-Language","Content-Type","Content-Disposition","Cookie","User-Agent","X-Requested-With","X-WP-Nonce","X-HTTP-Method-Override","Origin","Referer"]) {
     const value=request.headers.get(key);
     if(value) out[key]=value;
   }
@@ -49,11 +49,11 @@ export const nativePhpHandler:PhpHandler = async(request, env) => {
   const url=new URL(request.url);
   if (storageUnsafe) return Response.json({error:"MEDIA_WRITE_FAILURE"},{status:503});
   if (!mayServePreview(url,env)) return Response.json({error:"PREVIEW_ONLY_NO_DURABLE_DB"},{status:503,headers:{"Cache-Control":"no-store"}});
-  if (!["GET","HEAD","POST"].includes(request.method)) return new Response("Method Not Allowed",{status:405,headers:{Allow:"GET, HEAD, POST"}});
+  if (!["GET","HEAD","POST","PUT","PATCH","DELETE","OPTIONS"].includes(request.method)) return new Response("Method Not Allowed",{status:405,headers:{Allow:"GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS"}});
   const declared=Number(request.headers.get("content-length")??0);
   if (declared>MAX_BODY_BYTES) return new Response("Request body too large",{status:413});
   let body:Uint8Array=new Uint8Array();
-  if (request.method==="POST") {
+  if (request.method!=="GET" && request.method!=="HEAD") {
     body=new Uint8Array(await request.arrayBuffer());
     if (body.byteLength>MAX_BODY_BYTES) return new Response("Request body too large",{status:413});
   }
@@ -69,7 +69,7 @@ export const nativePhpHandler:PhpHandler = async(request, env) => {
         scriptPath,
         relativeUri:url.pathname+url.search,
         protocol:url.protocol.slice(0,-1),
-        method: request.method==="POST"?"POST":"GET",
+        method: request.method as "GET" | "POST" | "HEAD" | "OPTIONS" | "PATCH" | "PUT" | "DELETE",
         headers:guardedHeaders(request),
         body,
         $_SERVER:{
@@ -116,4 +116,10 @@ export async function readNativeDB():Promise<Uint8Array|null>{
   const php=await init;
   if(!php.fileExists("/private/microwp.sqlite"))return null;
   return new Uint8Array(php.readFileAsBuffer("/private/microwp.sqlite"));
+}
+
+/** DO cold-start hook, after DB restoration, before WordPress can use media files. */
+export async function restoreNativeMedia(origin:string,env:Env):Promise<number>{
+ const php=await getPHP(origin,env);
+ return hydrateUploads(php,env,uploaded);
 }

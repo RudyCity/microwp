@@ -35,6 +35,25 @@ describe("durable sqlite snapshots",()=>{
  test("rejects database exceeding memory allowance",async()=>{
    await expect(saveSQLiteSnapshot(memoryStore(),new Uint8Array(MAX_SQLITE_BYTES+1))).rejects.toThrow("8MiB");
  });
+ test("failed transaction never replaces last verified snapshot",async()=>{
+   const s=memoryStore();const original=new Uint8Array([1,2,3,4,5]);
+   await saveSQLiteSnapshot(s,original);
+   const faulty:SnapshotStore={
+     ...s,
+     async transaction<T>(callback:(tx:SnapshotStore)=>Promise<T>):Promise<T>{
+       return s.transaction(async tx=>{
+         let written=0;
+         const proxy:SnapshotStore={...tx,async put(key,value){
+           await tx.put(key,value);
+           if(++written===1)throw new Error("simulated write failure");
+         }};
+         return callback(proxy);
+       });
+     }
+   };
+   await expect(saveSQLiteSnapshot(faulty,new Uint8Array([9,8,7,6,5]))).rejects.toThrow("simulated write failure");
+   expect(await loadSQLiteSnapshot(s)).toEqual(original);
+ });
  test("digest is deterministic",async()=>{
    expect(await digest(new Uint8Array([1,2]))).toBe(await digest(new Uint8Array([1,2])));
  });

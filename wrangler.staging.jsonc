@@ -1,0 +1,12 @@
+{
+ "$schema":"./node_modules/wrangler/config-schema.json",
+ "name":"microwp-alpha-staging",
+ "main":"src/index-durable.ts",
+ "compatibility_date":"2026-11-04",
+ "workers_dev":true,
+ "assets":{"directory":"./public","binding":"ASSETS","run_worker_first":true},
+ "durable_objects":{"bindings":[{"name":"SITE_DO","class_name":"MicroWPSite"}]},
+ "migrations":[{"tag":"v1","new_sqlite_classes":["MicroWPSite"]}],
+ "r2_buckets":[{"binding":"MEDIA","bucket_name":"microwp-alpha-staging-media"}],
+ "observability":{"enabled":true}
+}
