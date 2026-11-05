@@ -20,6 +20,8 @@ jobs:
         run: bun run sources:fetch
       - name: Package WordPress code and assets
         run: bun run wordpress:prepare
+      - name: Prepare Worker-compatible PHP WebAssembly loader
+        run: bun run wasm:prepare
       - name: Unit tests and types
         run: bun run check
       - name: Edge Worker bundle

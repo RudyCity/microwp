@@ -3,7 +3,7 @@ node_modules/
 dist/
 dist-php-probe/
 dist-native/
-generated/
+/generated/
 vendor/
 public/wp-admin/
 public/wp-includes/
