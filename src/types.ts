@@ -24,6 +24,9 @@ export interface ServiceBinding { fetch(request: Request): Promise<Response> }
 export interface Env {
   ASSETS?: ServiceBinding;
   MEDIA?: MediaR2;
+  /** Cloudflare D1: authoritative SQLite snapshot store in D1 bridge mode. */
+  DB?: D1Database;
+  MICROWP_STORAGE_DRIVER?: "d1" | "durable-object";
   PAGE_CACHE?: CacheKV;
   PHP_BACKEND?: ServiceBinding;
   CACHE_TTL?: string;

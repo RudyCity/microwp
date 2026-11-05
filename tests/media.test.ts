@@ -30,6 +30,6 @@ describe("media bridge",()=>{
     await expect(putMedia(env,"/wp-content/uploads/image.png",new Uint8Array(10*1024*1024+1))).rejects.toThrow();
     await expect(putMedia(env,"/wp-content/uploads/image.png",new Uint8Array([1,2,3]))).rejects.toThrow();
     await putMedia(env,"/wp-content/uploads/image.png",new Uint8Array([137,80,78,71,13,10,26,10,1,2,3,4]));
-    expect(written).toEqual(["image.png"]);
+    expect(written).toEqual(["wp-content/uploads/image.png"]);
   });
 });

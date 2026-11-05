@@ -6,18 +6,18 @@
 [![Status: Experimental Alpha](https://img.shields.io/badge/status-experimental%20alpha-orange.svg)](CHANGELOG.md)
 [![CI](https://github.com/RudyCity/microwp/actions/workflows/ci.yml/badge.svg)](https://github.com/RudyCity/microwp/actions/workflows/ci.yml)
 
-> **Experimental alpha v0.2.0-alpha.1 — NOT production-ready.** Never deploy with real accounts, production databases or live traffic. Public dynamic WordPress requests are intentionally blocked by default.
+> **Experimental alpha v0.2.0-alpha.3 — NOT production-ready.** Never deploy with real accounts, production databases or live traffic. Public dynamic WordPress requests are intentionally blocked by default.
 
 microWP runs **official WordPress 7.1.4** and **PHP 8.4.27 WebAssembly** inside the Cloudflare Workers runtime. It is not a static-site exporter or a replacement CMS. This project is **not affiliated with or endorsed by WordPress Foundation, Automattic, or Cloudflare**.
 
 ## Features verified in local workerd
 
 - Official WordPress install, login, authenticated dashboard, REST post creation/update and theme page rendering.
-- Single-site Durable Object with SQLite Database Integration 3.1.3 and versioned, SHA256-verified SQLite snapshot chunks (8 MiB preview DB limit).
+- **Cloudflare D1** is the durable database store: SQLite Database Integration 3.1.3 runs PDO SQLite in PHP-WASM while D1 persists versioned, SHA256-verified snapshots in transactional BLOB chunks (8 MiB preview DB cap). **This is a bridge, not yet native SQL query execution on D1.** A single-site Durable Object only serializes requests and stores the auth secret.
 - **Normal process restart** preserves WordPress installation, published/edited article, login session and public pages.
-- **Local R2** upload, serve, reload and delete a PNG media file using WordPress's authenticated REST API.
+- **Cloudflare R2 wp-content** stores WordPress uploads under `wp-content/uploads/`; read-only theme/plugin static assets can be supplied from R2 with bundled files as fallback. PHP theme/plugin code remains immutable and is never executed from R2.
 - Reproducible WordPress and SQLite source downloads, pinned SHA256 checks, lazy ZIP-mounted PHP and theme/block metadata, and separate edge static assets.
-- 45 unit tests plus the full WordPress local workerd E2E script. Tests and Worker bundle builds run in GitHub Actions.
+- 53 unit tests plus the full WordPress local workerd E2E script. Tests and Worker bundle builds run in GitHub Actions.
 - Fail-closed security controls: no public native WP routes, blocked config/secret paths, media file signature checks, request limits, disabled WP core/plugin auto-edit, and disabled dynamic page cache.
 
 ## Run locally
@@ -31,11 +31,12 @@ bun install --frozen-lockfile
 bun run sources:fetch
 bun run wordpress:prepare
 bun run check
+bunx wrangler d1 migrations apply microwp-local-dev-db --local --config wrangler.durable.jsonc
 bun run durable:build
 bun run durable:dev
 ```
 
-Open **http://127.0.0.1:8796/wp-admin/install.php**. Use **demo accounts and demo content only**. Local Durable Object and R2 storage is under the ignored `.wrangler/` directory.
+Open **http://127.0.0.1:8796/wp-admin/install.php**. Use **demo accounts and demo content only**. Local D1, Durable Object auth state and R2 emulator data are under ignored `.wrangler/`. The D1 config is local-only; do not deploy the local Wrangler config to your account.
 
 ### Automated end-to-end test
 
@@ -52,7 +53,7 @@ This provisions a separate **local test state**, installs WordPress with generat
 | `bun run dev` | Small edge router only; PHP disabled |
 | `bun run wasm:dev` | Isolated PHP-WASM runtime probes |
 | `bun run native:dev` | Native PHP-WASM + WP with **ephemeral** local SQLite |
-| `bun run durable:dev` | Native WP + local Durable Object snapshot + R2 |
+| `bun run durable:dev` | Native WP + locally emulated **D1 SQLite snapshot store** + Durable Object request serialization + R2 |
 | `bun run staging:build` | Publicly gated staging Worker **dry-run**; no deployment |
 | `bun run production:preflight` | Strict production go/no-go gate; currently **expected to fail** |
 
@@ -64,9 +65,9 @@ HTTP request
     -> one Durable Object per local demo site
       -> PHP 8.4 WASM / WordPress 7.1.4
         -> lazy ZIP-mounted immutable WordPress source + theme metadata
-        -> SQLite Database Integration in WASM filesystem
-        -> transactional versioned DB snapshots in Durable Object storage
-        -> WordPress-uploaded media to/from R2
+        -> SQLite Database Integration (ephemeral PDO SQLite in WASM)
+        -> transactional, SHA256-verified SQLite image chunks in Cloudflare D1
+        -> WordPress media uploads + read-only static theme/plugin overlay in R2
 ```
 
 Limits are intentionally conservative: **8 MiB** per SQLite snapshot; **32 files** and **16 MiB** per cold-start R2 media hydration. The source is packaged in a Worker module; theme/plugin writes are disabled. Native page caching is off pending safe invalidation.
@@ -77,12 +78,12 @@ Limits are intentionally conservative: **8 MiB** per SQLite snapshot; **32 files
 
 ## Important production limitations
 
-- WordPress SQLite file writes and Durable Object storage snapshots are distinct transactions; crashes in between can lose the latest change. Full crash injection/atomicity validation is **not complete**.
+- WordPress SQLite file writes and Cloudflare D1 snapshot persistence are distinct transactions; crashes in between can lose the latest change. Full crash injection/atomicity validation is **not complete**.
 - Locked Cloudflare staging gateway is **deployed**, with public route safety smoke tests passing. A secret-gated private probe confirms **PHP 8.4.27 + SQLite works live** (Cloudflare invocation: 8 ms CPU), but **WordPress bootstrap is terminated with `exceededCpu`** (observed 2,010 ms CPU). Peak **128 MB** isolate memory and full real-WordPress execution remain **unverified**; see [Cloudflare runtime evidence](docs/reports/2026-11-05-cloudflare-private-runtime-canary.md).
 - No production-grade backup/restore drills, rate limiting, WAF, plugin compatibility audit, cross-site auth testing, or complete image transformation/media stress tests.
 - No public WordPress functionality is enabled. Static/staging safety checks cannot substitute for application and operational review.
 
-See [CHANGELOG.md](CHANGELOG.md), [Getting started](docs/GETTING_STARTED.md), [Operations and release gates](docs/OPERATIONS.md), and [master plan](docs/plans/2026-11-05-microwp-master-plan.md).
+See [D1 + R2 storage design](docs/ARCHITECTURE_D1_R2.md) and [validation report](docs/reports/2026-11-05-d1-r2-validation.md), [CHANGELOG.md](CHANGELOG.md), [Getting started](docs/GETTING_STARTED.md), [Operations and release gates](docs/OPERATIONS.md), and [master plan](docs/plans/2026-11-05-microwp-master-plan.md).
 
 ## Contributing and license
 

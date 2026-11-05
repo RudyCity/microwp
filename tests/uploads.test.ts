@@ -3,7 +3,7 @@ import {flushUploads,hydrateUploads,finalizeUploadDeletes} from "../src/php/uplo
 import type {Env} from "../src/types";
 
 const PNG=new Uint8Array([137,80,78,71,13,10,26,10,1,2,3,4]);
-const key="2026/11/photo.png",filepath="/www/wp-content/uploads/"+key;
+const key="2026/11/photo.png",objectKey="wp-content/uploads/"+key,filepath="/www/wp-content/uploads/"+key;
 function fixture(){
  const files:Record<string,Uint8Array>={[filepath]:PNG.slice()};
  const written:string[]=[],deleted:string[]=[];
@@ -28,9 +28,9 @@ describe("WordPress R2 write-through and cold-start rehydration",()=>{
  test("writes file, skips duplicate digest, rehydrates on new isolate",async()=>{
    const f=fixture();const old=new Map<string,string>();
    expect(await flushUploads(f.php,f.env,old)).toBe(1);
-   expect(f.written).toEqual([key]);
+   expect(f.written).toEqual([objectKey]);
    expect(await flushUploads(f.php,f.env,old)).toBe(0);
-   const next=fixture();next.r2.set(key,PNG.slice());
+   const next=fixture();next.r2.set(objectKey,PNG.slice());
    delete next.files[filepath];
    const replay=new Map<string,string>();
    expect(await hydrateUploads(next.php,next.env,replay)).toBe(1);
@@ -42,8 +42,8 @@ describe("WordPress R2 write-through and cold-start rehydration",()=>{
    await flushUploads(f.php,f.env,uploaded);
    delete f.files[filepath];
    expect(await flushUploads(f.php,f.env,uploaded)).toBe(1);
-   expect(f.deleted).toEqual([key]);
-   expect(f.r2.has(key)).toBe(false);
+   expect(f.deleted).toEqual([objectKey,key]);
+   expect(f.r2.has(objectKey)).toBe(false);
  });
  test("defers destructive R2 deletes until after the DB snapshot is saved",async()=>{
    const f=fixture(),uploaded=new Map<string,string>(),pending=new Set<string>();
@@ -51,10 +51,10 @@ describe("WordPress R2 write-through and cold-start rehydration",()=>{
    delete f.files[filepath];
    expect(await flushUploads(f.php,f.env,uploaded,pending)).toBe(1);
    expect(pending.has(filepath)).toBe(true);
-   expect(f.r2.has(key)).toBe(true); // DB save has not completed; old snapshot still references R2 object
+   expect(f.r2.has(objectKey)).toBe(true); // DB save has not completed; old snapshot still references R2 object
    expect(f.deleted).toEqual([]);
    expect(await finalizeUploadDeletes(f.env,uploaded,pending)).toBe(1);
-   expect(f.r2.has(key)).toBe(false);
+   expect(f.r2.has(objectKey)).toBe(false);
    expect(pending.size).toBe(0);
  });
  test("simulated failed DB commit leaves R2 media untouched for old snapshot",async()=>{
@@ -63,7 +63,7 @@ describe("WordPress R2 write-through and cold-start rehydration",()=>{
    delete f.files[filepath];
    await flushUploads(f.php,f.env,uploaded,pending);
    // A DB persistence failure returns 503 and never invokes finalizeUploadDeletes.
-   expect(f.r2.has(key)).toBe(true);
+   expect(f.r2.has(objectKey)).toBe(true);
    expect(uploaded.has(filepath)).toBe(true);
    expect(pending.has(filepath)).toBe(true);
  });
@@ -81,11 +81,11 @@ describe("WordPress R2 write-through and cold-start rehydration",()=>{
    const f=fixture();await expect(flushUploads(f.php,{},new Map())).rejects.toThrow("R2 binding required");
  });
  test("corrupt object fails closed on rehydration",async()=>{
-   const f=fixture();f.r2.set(key,new Uint8Array([1,2,3,4]));
+   const f=fixture();f.r2.set(objectKey,new Uint8Array([1,2,3,4]));
    await expect(hydrateUploads(f.php,f.env,new Map())).rejects.toThrow("Corrupt R2");
  });
  test("oversized listing fails closed without downloading",async()=>{
-   const f=fixture();f.env.MEDIA!.list=async()=>({objects:Array.from({length:33},(_,i)=>({key:`${i}.png`,size:PNG.length})),truncated:true});
+   const f=fixture();f.env.MEDIA!.list=async()=>({objects:Array.from({length:33},(_,i)=>({key:`wp-content/uploads/${i}.png`,size:PNG.length})),truncated:true});
    await expect(hydrateUploads(f.php,f.env,new Map())).rejects.toThrow("32 files");
  });
 });

@@ -19,7 +19,7 @@ async function check(path:string,expected:number|number[],label:string,options:R
 const health=await check("/__microwp/health",200,"Cloudflare staging health");
 if(health.ok){
  const status=await health.json() as {publicReady?:boolean;storage?:string};
- if(status.publicReady!==false||status.storage!=="durable-object"){
+ if(status.publicReady!==false||status.storage!=="d1-sqlite-bridge"){
    console.log("FAIL staging safety flags are missing or incorrect");
    failed++;
  }

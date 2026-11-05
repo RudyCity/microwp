@@ -11,7 +11,7 @@ const origin=new URL(endpoint);
 if(origin.protocol!=="https:"||!origin.hostname.endsWith(".workers.dev"))throw new Error("Private probe requires workers.dev HTTPS staging");
 const secret=(await readFile(".wrangler/staging-probe.key","utf8")).trim();
 if(secret.length<64||secret.length>128)throw new Error("Missing strong locally generated staging probe key");
-const scope=process.argv.includes("--wordpress")?"wordpress":"runtime";
+const scope=process.argv.includes("--storage-write-test")?"storage-write-test":process.argv.includes("--storage")?"storage":process.argv.includes("--wordpress")?"wordpress":"runtime";
 const route=origin.origin+PROBE_PATH;
 const start=performance.now();
 const resp=await fetch(route,{method:"POST",headers:{"X-MicroWP-Probe-Key":secret,"X-MicroWP-Probe-Scope":scope},signal:AbortSignal.timeout(110000),redirect:"manual"});
@@ -26,5 +26,9 @@ if(!resp.ok){
  const report={at:new Date().toISOString(),endpoint:origin.origin,httpStatus:resp.status,requestRoundTripMs:Math.round(performance.now()-start),...result};
  await writeFile(".wrangler/staging-private-probe-result.json",JSON.stringify(report,null,2)+"\n");
  console.log("Cloudflare private canary:",JSON.stringify(report,null,2));
- if(!result.ok||!result.sqlite||result.phpVersion!=="8.4.27"||(scope==="wordpress"&&(!result.installerForm||result.installerStatus!==200)))process.exitCode=1;
+ if(scope==="storage-write-test"){
+  if(!result.ok||(result as any).backend!=="d1-batch-blob"||(result as any).verified!==true)process.exitCode=1;
+ }else if(scope==="storage"){
+  if(!result.ok||(result as any).backend!=="d1-sqlite-bridge"||(result as any).r2Available!==true)process.exitCode=1;
+ }else if(!result.ok||!result.sqlite||result.phpVersion!=="8.4.27"||(scope==="wordpress"&&(!result.installerForm||result.installerStatus!==200)))process.exitCode=1;
 }

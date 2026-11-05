@@ -2,6 +2,17 @@
 
 All notable user-visible changes to microWP are documented here.
 
+## [0.2.0-alpha.3] — D1 durable SQLite and R2 wp-content (2026-11-05)
+
+**Experimental Alpha, production NO-GO.**
+
+- Cloudflare **D1** is now the authoritative durable SQLite snapshot store for WordPress when D1 mode is enabled. Atomic chunk transactions use D1 BLOB rows with SHA-256 verification. WordPress PDO still operates on a temporary SQLite image in PHP-WASM; this is a compatibility bridge, **not a native query-level D1 WordPress adapter**.
+- Isolated staging D1 `microwp-alpha-staging-db` provisioned with versioned migration, and D1/R2 bindings deployed to the existing locked Worker. Private binding diagnostic: **HTTP 200 PASS**. Other D1 databases left unchanged.
+- **R2 `wp-content/`** namespace: WordPress uploads stored under `wp-content/uploads/`, and trusted theme/plugin static assets served read-only from R2 with immutable bundled fallback. Executable theme/plugin PHP remains locked in the build.
+- The official Twenty Twenty-Five stylesheet was uploaded to the isolated R2 staging bucket, fetched back and SHA-256 compared. Full local WordPress E2E verifies D1 persistence, authenticated media operations, restart and R2 theme asset delivery.
+- **53 unit tests pass**, including D1 rollback, integrity and site-isolation tests. Public Cloudflare WordPress routes remain blocked.
+- Production remains NO-GO: full WordPress bootstrap still exceeds the account's current Cloudflare CPU budget; independent memory, crash, security and backup validation is outstanding.
+
 ## [0.2.0-alpha.2] — Cloudflare runtime diagnostics and durability hardening (2026-11-05)
 
 **Experimental Alpha, production NO-GO.**

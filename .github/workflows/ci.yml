@@ -30,5 +30,7 @@ jobs:
         run: bun run native:build
       - name: Durable WordPress bundle
         run: bun run durable:build
+      - name: Staging bundle with D1 and R2 bindings (dry-run only)
+        run: bun run staging:build
       - name: Real WordPress E2E in Cloudflare workerd
         run: bash scripts/e2e-local.sh

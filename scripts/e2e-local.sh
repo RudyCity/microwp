@@ -7,6 +7,12 @@ TEST_STATE=".wrangler/e2e-ci-state"
 LOG=".wrangler/e2e-ci-workerd.log"
 rm -rf "$TEST_STATE"
 rm -f ".wrangler/e2e-local-auth.json"
+# Prepare the isolated local D1 database; never touch the actual Cloudflare staging DB.
+./node_modules/.bin/wrangler d1 migrations apply microwp-local-dev-db --local --config wrangler.durable.jsonc --persist-to "$TEST_STATE"
+# Seed one distinctive *non-executable* wp-content stylesheet into isolated local R2.
+printf '%s
+' '/* microwp-r2-overlay-e2e-marker */' > .wrangler/e2e-r2-theme.css
+./node_modules/.bin/wrangler r2 object put microwp-preview-media/wp-content/themes/twentytwentyfive/style.css --local --persist-to "$TEST_STATE" --file .wrangler/e2e-r2-theme.css --content-type text/css
 PID=""
 start_worker() {
   ./node_modules/.bin/wrangler dev --config wrangler.durable.jsonc --ip 127.0.0.1 --port 8796 --persist-to "$TEST_STATE" --show-interactive-dev-session=false >"$LOG" 2>&1 &
@@ -37,6 +43,8 @@ stop_worker() {
 trap 'stop_worker' EXIT
 echo "Running WordPress install, login, article editing, and R2 upload in local workerd..."
 start_worker
+curl --fail --silent --show-error --max-time 15 http://127.0.0.1:8796/wp-content/themes/twentytwentyfive/style.css | grep -q microwp-r2-overlay-e2e-marker
+echo "PASS non-executable wp-content theme CSS is served from local R2 overlay"
 bun scripts/e2e-wordpress.ts install
 bun scripts/e2e-wordpress.ts publish
 bun scripts/e2e-wordpress.ts upload
