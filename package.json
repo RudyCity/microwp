@@ -26,7 +26,10 @@
     "staging:build": "bun run wasm:prepare && wrangler deploy --config wrangler.staging.jsonc --dry-run --outdir dist-staging",
     "staging:probe": "bun scripts/staging-private-probe.ts",
     "free:build": "wrangler deploy --config wrangler.free-preview.jsonc --dry-run --outdir dist-free-preview",
-    "free:dev": "node node_modules/wrangler/bin/wrangler.js dev --config wrangler.free-preview.jsonc --local --ip 127.0.0.1 --port 18921 --persist-to .wrangler/free-preview-local-state"
+    "free:dev": "node node_modules/wrangler/bin/wrangler.js dev --config wrangler.free-preview.jsonc --local --ip 127.0.0.1 --port 18921 --persist-to .wrangler/free-preview-local-state",
+    "canary:build": "bun run wasm:prepare && wrangler deploy --config wrangler.free-do-cpu.jsonc --dry-run --outdir dist-free-do-probe",
+    "canary:e2e": "bun scripts/free-do-cpu-local-e2e.ts",
+    "canary:remote": "bun scripts/free-do-cpu-remote-probe.ts"
   },
   "dependencies": {
     "@php-wasm/universal": "3.1.62",

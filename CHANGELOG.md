@@ -2,6 +2,15 @@
 
 All notable user-visible changes to microWP are documented here.
 
+## Unreleased — Actual server-side WordPress inside a Free Durable Object (2026-11-06)
+
+- Research and test the **requested full WordPress/PHP runtime**, not the abandoned static HTML alternative.
+- Added a dedicated, secret-gated Worker → SQLite-backed Durable Object CPU/WordPress canary that runs fixed CPU samples, PHP 8.4.27 + PDO SQLite and the actual WordPress 7.1.4 installer **inside the Durable Object fetch invocation**.
+- Local Workerd authenticated CPU/PHP/WordPress canary passed HTTP 200; unauthenticated probes and public admin route returned HTTP 404. **159 unit tests passed**.
+- Added bounded local E2E and explicit remote CPU probing scripts, dry-run bundle and CI pipeline tests.
+- Deployed **only** the isolated canary service on Cloudflare; no Worker CPU limit changes, D1/R2 bindings, billing upgrades, production database changes or public WordPress route. Canary remains **locked** because secret provisioning was blocked. Direct Cloudflare Free DO CPU and memory fitness are **not yet verified**.
+- Keep WordPress production **NO-GO** until actual remote Free CPU/128MB evidence and complete native D1 wpdb/R2 E2E exist.
+
 ## Unreleased — Workers Free-only read-only publishing prototype (2026-11-06)
 
 - Add separate optional entrypoint and disabled-by-default config for a **Free CPU-budget-focused** public site without PHP-WASM bootstrap per request.

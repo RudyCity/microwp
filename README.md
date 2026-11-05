@@ -109,6 +109,17 @@ The CPU/DB critical-path implementation is recorded in [the detailed Stage-3 out
 
 > **Product direction clarification (2026-11-06):** The user requires **real server-side WordPress PHP on Cloudflare Workers Free**, not static HTML publication. The Free static preview documented below is an **unused, disabled experiment**, not the planned production replacement. See [research on running actual WordPress in Workers Free](docs/research/2026-11-06-real-wordpress-cloudflare-workers-free.md) for the Durable Objects CPU-limit ambiguity, JSPI/OpCache possibilities and verification gates. Full WordPress remains production NO-GO.
 
+## Real WordPress inside Free Durable Object — protected CPU canary
+
+**The production target remains real WordPress/PHP server-side on Cloudflare Free, NOT a static-HTML replacement.** A separate isolated service is now available for verifying the CPU limit of the actual Durable Object invocation:
+
+- `src/probes/free-do-cpu.ts` executes fixed CPU samples, PHP 8.4 + SQLite, and a real WordPress 7.1.4 installer inside a **SQLite-backed Durable Object**. The ingress Worker only authenticates and forwards; no route executes PHP without a private secret.
+- `bun run canary:build` is a dry-run, and `bun run canary:e2e` runs local Workerd against the actual PHP-WASM installer. Only 5 bounded CPU iteration counts are possible; the endpoint cannot run arbitrary PHP, SQL, or WordPress paths.
+- Isolated Cloudflare canary service `microwp-free-do-cpu-probe` is deployed but **locked**: root and unauthenticated private probe both return HTTP 404. Automated secret provisioning was blocked by security controls; real Free CPU measurements remain **unverified** until a secret is installed by the operator.
+- `bun run canary:remote` is a separately authenticated operator tool; it does **not** deploy. CPU must be determined from Cloudflare invocation logs, not the client's wall time.
+
+See [full canary evidence and safe operator setup](docs/reports/2026-11-06-microwp-free-do-canary-development.md). The previously recorded WordPress `exceededCpu` happened in **Worker ingress**; it has not yet established the actual Durable Object CPU limit on Free. WordPress production remains **NO-GO** until the remote canary, memory test and `wpdb` E2E pass.
+
 ## Workers Free only — optional static publishing preview
 
 **No paid plan is required or authorized.** The 10 ms Workers Free CPU limit makes the current full PHP-WASM WordPress bootstrap unsuitable for public requests. An **experimental, disabled-by-default alternative** is now implemented separately:

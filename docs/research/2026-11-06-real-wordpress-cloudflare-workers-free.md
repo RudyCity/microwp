@@ -79,3 +79,9 @@ Akan tetapi, **128 MB isolate**, lifecycle (eviction/restart), PHP state, DB int
 **GO riset lanjut** hanya dengan CPU/memori **real Free Cloudflare** dan PHP WordPress yang benar-benar dijalankan di **Worker/DO**, lalu wpdb E2E. **Production tetap NO-GO** sampai tes asli membuktikannya.
 
 Urutan tindakan berikut yang paling bernilai: (1) isolated Free DO vs Worker CPU probe; (2) JSPI compatibility + PHP-only probes; (3) wp-load/init memory breakdown; (4) OpCache persistent PHP; (5) native wpdb D1 integration. Riset yang ada mengidentifikasi eksperimen; ia **tidak** membuktikan kelayakan yang belum diuji.
+
+## Implemented research canary update — 2026-11-06
+
+A standalone token-gated Cloudflare Worker + SQLite-backed Durable Object has been developed and deployed **without paid-limit settings**. Its ingress only authenticates and forwards, while `MicroWPFreeCpuDO.fetch()` directly executes fixed PHP-WASM and actual WordPress installer probes. Local Workerd returned HTTP 200 for all three CPU, PHP and WordPress modes. The remote Worker `microwp-free-do-cpu-probe` currently returns HTTP 404 to unauthenticated requests; the private secret provisioning step was blocked and **no remote CPU invocation evidence has been collected**. See `docs/reports/2026-11-06-microwp-free-do-canary-development.md`.
+
+**The 30-second default Durable Object CPU figure is still a hypothesis for actual Free account invocation until observed in Cloudflare runtime logs; it is not a production gate that has passed.**

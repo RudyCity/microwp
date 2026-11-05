@@ -1,0 +1,11 @@
+{
+ "$schema":"./node_modules/wrangler/config-schema.json",
+ "name":"microwp-free-do-cpu-probe",
+ "main":"src/probes/free-do-cpu.ts",
+ "compatibility_date":"2026-11-04",
+ "workers_dev":true,
+ "vars":{"MICROWP_STAGING_MODE":"isolated-probe-only"},
+ "durable_objects":{"bindings":[{"name":"CPU_PROBE_DO","class_name":"MicroWPFreeCpuDO"}]},
+ "migrations":[{"tag":"v1","new_sqlite_classes":["MicroWPFreeCpuDO"]}],
+ "observability":{"enabled":true}
+}

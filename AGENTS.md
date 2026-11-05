@@ -47,3 +47,10 @@ Status: public open-source experimental alpha v0.2.0-alpha.4; staging locked; NO
 - Cloudflare Workers Free only: no billing upgrade, paid plans, billing mutations or paid compute. DO CPU Free semantics are ambiguous in official docs; **verify with an isolated private canary** before claiming 30-second CPU.
 - Research priorities: real Free DO CPU trace, PHP-WASM JSPI vs Asyncify, WordPress phase CPU/memory, OpCache/persistent runtime, direct D1 `wpdb`, R2 recovery. Respect 128 MB, 10 ms Worker ingress, and fail-closed production status.
 - Read `docs/research/2026-11-06-real-wordpress-cloudflare-workers-free.md` before assigning further work. No unsupported production claims or public WordPress routes.
+
+## Isolated Free Durable Object WordPress CPU canary (2026-11-06)
+
+- `wrangler.free-do-cpu.jsonc` is a separate service with no D1/R2 bindings, no increased CPU limit, and no WordPress admin route. It is not the deployed `microwp-alpha-staging` service.
+- The canary performs fixed, private, bounded CPU work, real PHP-WASM PDO probes and a fixed WordPress installer probe **inside Durable Object fetch()**. Never accept arbitrary PHP, SQL, WordPress paths or direct public access.
+- Reproducible local verification is `bun run canary:e2e`. Successful local HTTP 200 is NOT evidence of Cloudflare Free CPU fitness.
+- The actual canary Worker is deployed but not authorized for a remote probe because the secret-install action was blocked; do not bypass security checks or expose its secret. After the operator installs a key, run the explicit remote probe, then inspect actual DO invocation `cpuTime`, outcome and 128 MB isolate memory.

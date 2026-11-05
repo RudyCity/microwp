@@ -24,3 +24,6 @@ dist-durable/
 
 # Experimental Free-only local preview bundle
 dist-free-preview/
+
+# Private Free Durable Object CPU/WordPress canary bundle
+dist-free-do-probe/

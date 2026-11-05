@@ -34,3 +34,7 @@ jobs:
         run: bun run staging:build
       - name: Real WordPress E2E in Cloudflare workerd
         run: bash scripts/e2e-local.sh
+      - name: Free Durable Object WordPress canary bundle (dry-run only)
+        run: bun run canary:build
+      - name: WordPress PHP executes in a local Durable Object (private canary)
+        run: bun run canary:e2e
