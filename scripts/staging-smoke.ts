@@ -8,8 +8,8 @@ const url=new URL(supplied);
 if(url.protocol!=="https:"||["localhost","127.0.0.1"].includes(url.hostname))throw new Error("Staging URL must be real HTTPS");
 const origin=url.origin;
 let failed=0;
-async function check(path:string,expected:number|number[],label:string){
- const response=await fetch(origin+path,{redirect:"manual",signal:AbortSignal.timeout(15000)});
+async function check(path:string,expected:number|number[],label:string,options:RequestInit={}){
+ const response=await fetch(origin+path,{redirect:"manual",signal:AbortSignal.timeout(15000),...options});
  const allowed=Array.isArray(expected)?expected:[expected];
  const ok=allowed.includes(response.status);
  console.log((ok?"PASS ":"FAIL ")+label+" — HTTP "+response.status);
@@ -31,5 +31,7 @@ await check("/wp-admin/",503,"Admin remains blocked publicly");
 await check("/wp-login.php",503,"WordPress login remains blocked publicly");
 await check("/wp-includes/js/jquery/jquery.min.js",503,"Static WordPress assets remain blocked publicly");
 await check("/?rest_route=/wp/v2/posts",503,"REST API remains blocked publicly");
+await check("/__microwp/private/php-probe",404,"Private PHP probe rejects unauthenticated GET");
+await check("/__microwp/private/php-probe",404,"Private PHP probe rejects unauthenticated POST",{method:"POST",headers:{"X-MicroWP-Probe-Key":"invalid"}});
 console.log("Staging smoke: "+(failed?"FAIL":"PASS"));
 if(failed)process.exitCode=1;

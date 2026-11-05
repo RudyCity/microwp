@@ -4,7 +4,7 @@ import phpWasmModule from "../../node_modules/@php-wasm/web-8-4/asyncify/8_4_27/
 import wordpressArchive from "../../generated/wordpress-php.bin";
 import { mountWordPress,type MountStats } from "./zip-files";
 import { wordpressConfig, mayServePreview } from "./config";
-import {flushUploads,hydrateUploads} from "./uploads";
+import {flushUploads,hydrateUploads,finalizeUploadDeletes} from "./uploads";
 import type { Env, PhpHandler } from "../types";
 
 const MAX_BODY_BYTES = 1024 * 1024;
@@ -12,11 +12,15 @@ let init: Promise<PHP> | undefined;
 let serial: Promise<unknown> = Promise.resolve();
 let stats: MountStats | null = null;
 const uploaded=new Map<string,string>();
+const pendingMediaDeletes=new Set<string>();
 let storageUnsafe=false;
 export function nativeStats() {return {runtime:"php-8.4.27-wasm",mounted:stats!==null,files:stats?.files??0,unpackedBytes:stats?.bytes??0,mountMs:stats?.elapsedMs??0,loadedFiles:stats?.loadedFiles??0,loadedBytes:stats?.loadedBytes??0};}
 
 async function getPHP(origin:string, env:Env): Promise<PHP> {
   if (!init) init = (async () => {
+    const staging=env.MICROWP_STAGING_MODE==="isolated-probe-only";
+    const start=performance.now();
+    if(staging)console.info("microWP isolated canary: WASM_BEGIN");
     const runtime = await loadPHPRuntime(loader as unknown as Parameters<typeof loadPHPRuntime>[0],{
       instantiateWasm(imports: WebAssembly.Imports, receive: (instance: WebAssembly.Instance, module: WebAssembly.Module)=>void) {
         const instance = new WebAssembly.Instance(phpWasmModule,imports);
@@ -24,10 +28,13 @@ async function getPHP(origin:string, env:Env): Promise<PHP> {
         return instance.exports;
       }
     });
+    if(staging)console.info("microWP isolated canary: WASM_READY_MS",Math.round(performance.now()-start));
     const php = new PHP(runtime);
     stats=await mountWordPress(php,new Uint8Array(wordpressArchive));
+    if(staging)console.info("microWP isolated canary: ZIP_READY_MS",Math.round(performance.now()-start));
     php.mkdir("/private");
     php.writeFile("/www/wp-config.php",wordpressConfig(origin,env));
+    if(staging)console.info("microWP isolated canary: CONFIG_READY_MS",Math.round(performance.now()-start));
     return php;
   })().catch((e)=>{init=undefined;stats=null;throw e});
   return init;
@@ -82,7 +89,7 @@ export const nativePhpHandler:PhpHandler = async(request, env) => {
           SCRIPT_NAME:scriptPath.slice(4),
         }
       });
-      try { await flushUploads(php,env,uploaded); }
+      try { await flushUploads(php,env,uploaded,env.MICROWP_DEFER_MEDIA_DELETES==="yes"?pendingMediaDeletes:undefined); }
       catch(err) { storageUnsafe=true; throw err; }
       const headers=new Headers();
       for (const [key,values] of Object.entries(output.headers)) {
@@ -122,4 +129,42 @@ export async function readNativeDB():Promise<Uint8Array|null>{
 export async function restoreNativeMedia(origin:string,env:Env):Promise<number>{
  const php=await getPHP(origin,env);
  return hydrateUploads(php,env,uploaded);
+}
+
+/** Read-only canary for private staging only. Never accepts script text or paths from requests. */
+export async function runNativeStagingProbe(env:Env,scope:"runtime"|"wordpress"="runtime"):Promise<{
+  ok:boolean;scope:"runtime"|"wordpress";phpVersion:string;sqlite:boolean;phpExitCode:number;installerStatus:number|null;
+  installerForm:boolean;runtimeInitMs:number;requestMs:number;stats:ReturnType<typeof nativeStats>
+}>{
+  return oneAtATime(async()=>{
+    const start=performance.now();
+    const php=await getPHP("https://microwp-private-probe.invalid",env);
+    const afterInit=performance.now();
+    if(env.MICROWP_STAGING_MODE==="isolated-probe-only")console.info("microWP isolated canary: PHP_RUN_BEGIN");
+    const check=await php.run({code:"<?php echo PHP_VERSION . '|' . (extension_loaded('pdo_sqlite') ? 'sqlite' : 'missing');"});
+    if(env.MICROWP_STAGING_MODE==="isolated-probe-only")console.info("microWP isolated canary: PHP_RUN_READY");
+    const version=new TextDecoder().decode(check.bytes).trim().split("|");
+    // One fixed, GET-only WordPress installer request with its own ephemeral DB.
+    if(scope==="wordpress"&&env.MICROWP_STAGING_MODE==="isolated-probe-only")console.info("microWP isolated canary: WORDPRESS_INSTALLER_BEGIN");
+    const installer=scope==="wordpress"?await php.run({
+      scriptPath:"/www/wp-admin/install.php",
+      relativeUri:"/wp-admin/install.php?step=1",
+      method:"GET",protocol:"https",
+      $_SERVER:{HTTPS:"on",HTTP_HOST:"microwp-private-probe.invalid",SERVER_NAME:"microwp-private-probe.invalid",SERVER_PORT:"443",
+        DOCUMENT_ROOT:"/www",SCRIPT_FILENAME:"/www/wp-admin/install.php",SCRIPT_NAME:"/wp-admin/install.php"}
+    }):null;
+    if(installer&&env.MICROWP_STAGING_MODE==="isolated-probe-only")console.info("microWP isolated canary: WORDPRESS_INSTALLER_READY");
+    const body=installer?new TextDecoder().decode(installer.bytes):"";
+    const phpOkay=check.exitCode===0&&version[0]==="8.4.27"&&version[1]==="sqlite";
+    const ok=phpOkay&&(scope==="runtime"||(installer?.exitCode===0&&installer.httpStatusCode===200&&body.includes("weblog_title")));
+    return {ok,scope,phpVersion:version[0]??"unknown",sqlite:version[1]==="sqlite",phpExitCode:check.exitCode,installerStatus:installer?.httpStatusCode??null,
+      installerForm:body.includes("weblog_title"),runtimeInitMs:Math.round(afterInit-start),requestMs:Math.round(performance.now()-start),stats:nativeStats()};
+  });
+}
+
+/** After the DO has persisted its database snapshot, delete no-longer-referenced media. */
+export async function finalizeNativeMedia(env:Env):Promise<number>{
+ if(storageUnsafe)throw new Error("Media filesystem already unsafe");
+ try{return await finalizeUploadDeletes(env,uploaded,pendingMediaDeletes)}
+ catch(error){storageUnsafe=true;throw error}
 }

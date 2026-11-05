@@ -1,3 +1,5 @@
+> **Crash-risk mitigation (2026-11-05):** WordPress-media R2 DELETE is now deferred until after a successful Durable Object SQLite snapshot commit. Tests simulate DB commit and R2 delete failures. This prevents pre-commit destructive deletion of media but does NOT create an atomic transaction across DB/R2 or prove all abrupt crash cases.
+
 > **Cloudflare staging update (2026-11-05):** Live locked staging uses a newly created R2 bucket. All public WordPress and media routes remain blocked. DO migration deployed, but PHP-WASM and durable persistence are not exercised remotely because public dynamic access is deliberately disabled.
 
 # microWP SQLite Durable Object persistence architecture (experimental)

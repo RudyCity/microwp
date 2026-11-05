@@ -31,6 +31,11 @@ export interface Env {
   /** Future persistent URL and credentials. Not enabled until a durable DB exists. */
   WP_PUBLIC_URL?: string;
   WP_SECRET_KEY?: string;
+  /** Set only on deliberately isolated, non-production Cloudflare staging. */
+  MICROWP_STAGING_MODE?: string;
+  STAGING_PROBE_KEY?: string;
+  /** Internal single-site Durable Object flag; not configured by public Wrangler users. */
+  MICROWP_DEFER_MEDIA_DELETES?: string;
 }
 export interface ExecutionCtx { waitUntil(promise: Promise<unknown>): void }
 export type PhpHandler = (request: Request, env: Env) => Promise<Response>;

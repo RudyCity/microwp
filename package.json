@@ -1,6 +1,6 @@
 {
   "name": "microwp",
-  "version": "0.2.0-alpha.1",
+  "version": "0.2.0-alpha.2",
   "private": true,
   "type": "module",
   "description": "Cloudflare Workers edge engine and PHP-WASM in-isolate proof for WordPress",
@@ -23,7 +23,8 @@
     "production:preflight": "bun scripts/production-preflight.ts",
     "e2e:local": "bash scripts/e2e-local.sh",
     "staging:smoke": "bun scripts/staging-smoke.ts",
-    "staging:build": "bun run wasm:prepare && wrangler deploy --config wrangler.staging.jsonc --dry-run --outdir dist-staging"
+    "staging:build": "bun run wasm:prepare && wrangler deploy --config wrangler.staging.jsonc --dry-run --outdir dist-staging",
+    "staging:probe": "bun scripts/staging-private-probe.ts"
   },
   "dependencies": {
     "@php-wasm/universal": "3.1.62",

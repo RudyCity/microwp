@@ -1,11 +1,13 @@
 import { DurableObject } from "cloudflare:workers";
 import type {Env,ExecutionCtx} from "./types";
 import {handleRequest} from "./engine";
-import {nativePhpHandler,readNativeDB,restoreNativeDB,restoreNativeMedia} from "./php/native";
+import {nativePhpHandler,readNativeDB,restoreNativeDB,restoreNativeMedia,finalizeNativeMedia} from "./php/native";
 import {loadSQLiteSnapshot,saveSQLiteSnapshot,type SnapshotStore} from "./storage/sqlite-snapshot";
 import {blockedPath,isAssetPath,safePathname,withSafetyHeaders} from "./security";
 import {getMedia} from "./media";
 import {mayServePreview} from "./php/config";
+import {isAuthorizedProbe,PROBE_PATH} from "./staging-probe";
+import {runNativeStagingProbe} from "./php/native";
 interface DurableEnv extends Env {SITE_DO:DurableObjectNamespace<MicroWPSite>}
 function isLocal(host:string):boolean {return host==="localhost" || host==="127.0.0.1";}
 
@@ -29,7 +31,7 @@ export class MicroWPSite extends DurableObject<DurableEnv> {
           await this.ctx.storage.put("microwp:private:auth-secret",secret);
         }
       }
-      this.runtimeEnv={...this.env,WP_SECRET_KEY:secret};
+      this.runtimeEnv={...this.env,WP_SECRET_KEY:secret,MICROWP_DEFER_MEDIA_DELETES:"yes"};
       const snapshot=await loadSQLiteSnapshot(this.ctx.storage as unknown as SnapshotStore);
       if(snapshot)await restoreNativeDB(snapshot,origin,this.runtimeEnv);
       await restoreNativeMedia(origin,this.runtimeEnv);
@@ -50,6 +52,8 @@ export class MicroWPSite extends DurableObject<DurableEnv> {
         const response=await handleRequest(req,this.runtimeEnv!,{waitUntil(p){void p.catch(()=>{})}},nativePhpHandler,"native-wasm-durable");
         const snapshot=await readNativeDB();
         if(snapshot)await saveSQLiteSnapshot(this.ctx.storage as unknown as SnapshotStore,snapshot);
+        // First publish the DB state, then make destructive R2 media changes.
+        await finalizeNativeMedia(this.runtimeEnv!);
         return response;
       } catch(e) {
         this.failed=true;
@@ -65,6 +69,18 @@ export default {
     const path=safePathname(url);
     if(!path||blockedPath(path))return withSafetyHeaders(new Response("Not Found",{status:404}));
     if(path==="/__microwp/health")return withSafetyHeaders(Response.json({name:"microWP",php:"native-wasm",storage:"durable-object",publicReady:false},{headers:{"Cache-Control":"no-store"}}));
+    if(path===PROBE_PATH){
+      if(!await isAuthorizedProbe(request,env))return withSafetyHeaders(new Response("Not Found",{status:404,headers:{"Cache-Control":"no-store"}}));
+      // Only a fixed read-only PHP/WebAssembly canary is accepted; never forward user paths or PHP code.
+      const scope=request.headers.get("x-microwp-probe-scope")??"runtime";
+      if(scope!=="runtime"&&scope!=="wordpress")return withSafetyHeaders(new Response("Bad Request",{status:400,headers:{"Cache-Control":"no-store"}}));
+      try {
+        return withSafetyHeaders(Response.json(await runNativeStagingProbe(env,scope),{headers:{"Cache-Control":"no-store"}}));
+      } catch (error) {
+        console.error("Private staging PHP probe failed",error instanceof Error?error.message:"unknown");
+        return withSafetyHeaders(Response.json({error:"PRIVATE_PROBE_UNAVAILABLE"},{status:503,headers:{"Cache-Control":"no-store"}}));
+      }
+    }
     if(path.startsWith("/__microwp/"))return withSafetyHeaders(new Response("Not Found",{status:404}));
     // Public staging must never expose media or static site files while alpha is gated.
     if(!isLocal(url.hostname))return Response.json({error:"PREVIEW_ONLY_NO_PRODUCTION_DEPLOY"},{status:503,headers:{"Cache-Control":"no-store"}});

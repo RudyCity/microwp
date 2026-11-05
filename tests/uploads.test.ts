@@ -1,5 +1,5 @@
 import {describe,expect,test} from "bun:test";
-import {flushUploads,hydrateUploads} from "../src/php/uploads";
+import {flushUploads,hydrateUploads,finalizeUploadDeletes} from "../src/php/uploads";
 import type {Env} from "../src/types";
 
 const PNG=new Uint8Array([137,80,78,71,13,10,26,10,1,2,3,4]);
@@ -44,6 +44,38 @@ describe("WordPress R2 write-through and cold-start rehydration",()=>{
    expect(await flushUploads(f.php,f.env,uploaded)).toBe(1);
    expect(f.deleted).toEqual([key]);
    expect(f.r2.has(key)).toBe(false);
+ });
+ test("defers destructive R2 deletes until after the DB snapshot is saved",async()=>{
+   const f=fixture(),uploaded=new Map<string,string>(),pending=new Set<string>();
+   await flushUploads(f.php,f.env,uploaded);
+   delete f.files[filepath];
+   expect(await flushUploads(f.php,f.env,uploaded,pending)).toBe(1);
+   expect(pending.has(filepath)).toBe(true);
+   expect(f.r2.has(key)).toBe(true); // DB save has not completed; old snapshot still references R2 object
+   expect(f.deleted).toEqual([]);
+   expect(await finalizeUploadDeletes(f.env,uploaded,pending)).toBe(1);
+   expect(f.r2.has(key)).toBe(false);
+   expect(pending.size).toBe(0);
+ });
+ test("simulated failed DB commit leaves R2 media untouched for old snapshot",async()=>{
+   const f=fixture(),uploaded=new Map<string,string>(),pending=new Set<string>();
+   await flushUploads(f.php,f.env,uploaded);
+   delete f.files[filepath];
+   await flushUploads(f.php,f.env,uploaded,pending);
+   // A DB persistence failure returns 503 and never invokes finalizeUploadDeletes.
+   expect(f.r2.has(key)).toBe(true);
+   expect(uploaded.has(filepath)).toBe(true);
+   expect(pending.has(filepath)).toBe(true);
+ });
+ test("failed post-snapshot media delete retains its pending operation",async()=>{
+   const f=fixture(),uploaded=new Map<string,string>(),pending=new Set<string>();
+   await flushUploads(f.php,f.env,uploaded);
+   delete f.files[filepath];
+   await flushUploads(f.php,f.env,uploaded,pending);
+   f.env.MEDIA!.delete=async()=>{throw new Error("simulated R2 failure")};
+   await expect(finalizeUploadDeletes(f.env,uploaded,pending)).rejects.toThrow("simulated R2 failure");
+   expect(pending.has(filepath)).toBe(true);
+   expect(uploaded.has(filepath)).toBe(true);
  });
  test("no R2 fails closed on new upload",async()=>{
    const f=fixture();await expect(flushUploads(f.php,{},new Map())).rejects.toThrow("R2 binding required");

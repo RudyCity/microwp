@@ -17,7 +17,7 @@ microWP runs **official WordPress 7.1.4** and **PHP 8.4.27 WebAssembly** inside 
 - **Normal process restart** preserves WordPress installation, published/edited article, login session and public pages.
 - **Local R2** upload, serve, reload and delete a PNG media file using WordPress's authenticated REST API.
 - Reproducible WordPress and SQLite source downloads, pinned SHA256 checks, lazy ZIP-mounted PHP and theme/block metadata, and separate edge static assets.
-- 40 unit tests plus the full WordPress local workerd E2E script. Tests and Worker bundle builds run in GitHub Actions.
+- 45 unit tests plus the full WordPress local workerd E2E script. Tests and Worker bundle builds run in GitHub Actions.
 - Fail-closed security controls: no public native WP routes, blocked config/secret paths, media file signature checks, request limits, disabled WP core/plugin auto-edit, and disabled dynamic page cache.
 
 ## Run locally
@@ -78,7 +78,7 @@ Limits are intentionally conservative: **8 MiB** per SQLite snapshot; **32 files
 ## Important production limitations
 
 - WordPress SQLite file writes and Durable Object storage snapshots are distinct transactions; crashes in between can lose the latest change. Full crash injection/atomicity validation is **not complete**.
-- Locked Cloudflare staging gateway is **deployed**, and public route safety smoke tests pass. Actual PHP-WASM execution, CPU time, and peak **128 MiB** isolate memory **in the Cloudflare production runtime** are **not verified**.
+- Locked Cloudflare staging gateway is **deployed**, with public route safety smoke tests passing. A secret-gated private probe confirms **PHP 8.4.27 + SQLite works live** (Cloudflare invocation: 8 ms CPU), but **WordPress bootstrap is terminated with `exceededCpu`** (observed 2,010 ms CPU). Peak **128 MB** isolate memory and full real-WordPress execution remain **unverified**; see [Cloudflare runtime evidence](docs/reports/2026-11-05-cloudflare-private-runtime-canary.md).
 - No production-grade backup/restore drills, rate limiting, WAF, plugin compatibility audit, cross-site auth testing, or complete image transformation/media stress tests.
 - No public WordPress functionality is enabled. Static/staging safety checks cannot substitute for application and operational review.
 

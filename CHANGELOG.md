@@ -2,6 +2,18 @@
 
 All notable user-visible changes to microWP are documented here.
 
+## [0.2.0-alpha.2] — Cloudflare runtime diagnostics and durability hardening (2026-11-05)
+
+**Experimental Alpha, production NO-GO.**
+
+- Deployed a narrowly scoped, secret-protected private Cloudflare diagnostic that never exposes public WordPress routes or arbitrary PHP execution.
+- **Live Cloudflare PHP 8.4.27 + PDO SQLite canary PASS** (CPU 8 ms, wall time 10 ms).
+- **Live Cloudflare WordPress installer bootstrap FAIL** with `exceededCpu` (CPU 2,010 ms, wall time 2,108 ms); startup CPU is a verified blocker. No paid plan or CPU-spending changes were made.
+- Public staging gate and private probe non-disclosure tested with 10 security smoke checks.
+- Durable Object media delete now occurs **after** the database snapshot commit, preventing a failed snapshot from deleting still-referenced R2 media.
+- Added simulated DB/R2 failure tests; **45 unit tests** and full local WordPress E2E pass. True abrupt crash atomicity, remote memory, backups, and independent security remain unverified.
+- Detailed observed results in `docs/reports/2026-11-05-cloudflare-private-runtime-canary.md`.
+
 ## [0.2.0-alpha.1] — Experimental Alpha (2026-11-05)
 
 **Preview release only; NOT suitable for production WordPress sites or real user data.**

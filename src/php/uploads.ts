@@ -41,7 +41,7 @@ export async function hydrateUploads(php:HydrationFilesystem,env:Env,uploaded:Ma
 }
 
 /** Sync WordPress-created files to R2. Do not acknowledge request if a write/delete fails. */
-export async function flushUploads(php:Filesystem,env:Env,uploaded:Map<string,string>):Promise<number>{
+export async function flushUploads(php:Filesystem,env:Env,uploaded:Map<string,string>,pendingDeletes?:Set<string>):Promise<number>{
  const todo:string[]=[];
  if(php.isDir(ROOT)){
    function scan(dir:string,depth:number):void {
@@ -75,11 +75,34 @@ export async function flushUploads(php:Filesystem,env:Env,uploaded:Map<string,st
  }
  for(const path of [...uploaded.keys()]){
    if(todo.includes(path))continue;
+   if(pendingDeletes){
+     // A WordPress attachment delete must reach the durable DB snapshot BEFORE
+     // removing its R2 object; a crash must never break the last stored DB reference.
+     pendingDeletes.add(path);
+     count++;
+     continue;
+   }
    if(!env.MEDIA?.delete)throw new Error("R2 deletion support required");
    const key=mediaKey(path.slice(4));
    if(!key)throw new Error("Unsafe uploaded path");
    await env.MEDIA.delete(key);
    uploaded.delete(path);
+   count++;
+ }
+ return count;
+}
+
+/** Apply deferred R2 deletions only AFTER the Durable Object committed its DB snapshot. */
+export async function finalizeUploadDeletes(env:Env,uploaded:Map<string,string>,pending:Set<string>):Promise<number>{
+ if(!pending.size)return 0;
+ if(!env.MEDIA?.delete)throw new Error("R2 deletion support required");
+ let count=0;
+ for(const path of [...pending]){
+   const key=mediaKey(path.slice(4));
+   if(!key)throw new Error("Unsafe deferred upload path");
+   await env.MEDIA.delete(key);
+   uploaded.delete(path);
+   pending.delete(path);
    count++;
  }
  return count;

@@ -1,3 +1,5 @@
+> **CPU blocker (2026-11-05):** Private Cloudflare staging has PHP-only PASS (8 ms CPU) but WordPress installer bootstrap FAIL (`exceededCpu`, 2,010 ms). See `docs/reports/2026-11-05-cloudflare-private-runtime-canary.md`. A paid CPU limit is **not** authorized or configured. Production NO-GO.
+
 > **Cloudflare staging update (2026-11-05):** Wrangler OAuth authenticated; isolated R2 bucket and staging Worker are deployed. Public-route smoke tests pass (WordPress dynamic/static/media blocked). Real Cloudflare PHP-WASM memory/CPU and crash consistency remain unverified; production **NO-GO**.
 
 # microWP Master Plan — 2026-11-05
