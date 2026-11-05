@@ -2,6 +2,15 @@
 
 All notable user-visible changes to microWP are documented here.
 
+## Unreleased — Stage-2 four-chat Delegate integration and request hardening (2026-11-05)
+
+- All four parallel Delegate chats remained open through completion and produced distinct files for D1 adapter, WordPress ZIP index fastpath, conservative R2 evidence extractor, and independent QA.
+- Private, site-scoped **D1 runtime adapter prototype**; no public SQL route or WordPress `wpdb` cutover.
+- Bounded ZIP metadata fastpath prototype and parity/benchmark report. Deliberately **not enabled** in active PHP loader; local indexing speed does not prove Cloudflare WordPress CPU budget readiness.
+- Strictly incomplete/offline R2 media-reference evidence scanner; no automatic purge.
+- **Security fixes:** streaming 1 MiB PHP request-body cap and stricter canonical R2 upload keys, each regression tested.
+- No remote deploy, billing or DNS change. Production **NO-GO**.
+
 ## Unreleased — Delegate-orchestrated experimental modules (2026-11-05)
 
 - Prototype strict, private, versioned SELECT/INSERT D1 SQL protocol with Worker-owned scope, parameterized SQL and 9 tests; **not a native WordPress wpdb driver**.

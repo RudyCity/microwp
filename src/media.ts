@@ -13,7 +13,8 @@ export const MAX_MEDIA_BYTES=10*1024*1024;
 export function mediaKey(path:string):string|null{
  if(!path.startsWith(PREFIX))return null;
  const key=path.slice(PREFIX.length);
- if(!key||key.includes("\\")||key.includes("//")||key.split("/").some(p=>p==="."||p===".."||p.startsWith(".")))return null;
+ if(!key||key.length>512||key.normalize("NFC")!==key||key.includes("\\")||/[\u0000-\u001f\u007f?#%]/.test(key)||key.includes("//")||
+    key.split("/").some(p=>!p||p==="."||p===".."||p.startsWith(".")||/[.\s]$/.test(p)))return null;
  return VALID_EXT.test(key)?key:null;
 }
 /** Only the uploads namespace is writable from the WordPress runtime; never a PHP filename. */

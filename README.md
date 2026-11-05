@@ -90,6 +90,12 @@ Three isolated ChatGPT Delegate workstreams have produced **standalone prototype
 
 See [multi-chat integration evidence](docs/reports/2026-11-05-microwp-delegate-orchestration.md) and [bootstrap bottleneck report](docs/reports/microwp-bootstrap-profile-and-optimization.md). These prototypes are not wired into public routes, do not change production readiness, and need additional conformance/security tests before activation.
 
+## Stage-2 parallel Delegate engineering (unreleased)
+
+Four distinct ChatGPT Delegate tabs completed separate, file-scoped tasks, with all tabs retained. The result includes a **private D1 runtime adapter prototype**, a measured but **not enabled** fast ZIP metadata indexer, a conservative **offline-only WordPress media reference scan** that never authorizes deletion, and an independent security audit. In response to that audit, PHP request bodies now use a bounded stream reader rather than unbounded `arrayBuffer()` and R2 uploads use a canonicalized key policy. No public WordPress routes were opened.
+
+See [Stage-2 orchestration and test results](docs/reports/2026-11-05-microwp-stage2-orchestrated-delivery.md) and [independent security findings](docs/reports/2026-11-05-microwp-stage2-security-and-e2e-audit.md). These modules remain experimental. In particular, **the direct WordPress-to-D1 `wpdb` driver does not exist yet**, and the live WordPress installer CPU blocker remains unresolved.
+
 ## Important production limitations
 
 - WordPress SQLite file writes and Cloudflare D1 snapshot persistence are distinct transactions; crashes in between can lose the latest change. Full crash injection/atomicity validation is **not complete**.

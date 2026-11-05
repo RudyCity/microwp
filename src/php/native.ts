@@ -6,9 +6,9 @@ import { mountWordPress,type MountStats } from "./zip-files";
 import { wordpressConfig, mayServePreview } from "./config";
 import {flushUploads,hydrateUploads,finalizeUploadDeletes} from "./uploads";
 import {D1_BRIDGE_READINESS_MESSAGE,handleD1BridgeReadinessMessage} from "./d1-message-bridge";
+import {readBoundedRequestBody} from "./bounded-body";
 import type { Env, PhpHandler } from "../types";
 
-const MAX_BODY_BYTES = 1024 * 1024;
 let init: Promise<PHP> | undefined;
 let serial: Promise<unknown> = Promise.resolve();
 let stats: MountStats | null = null;
@@ -58,12 +58,13 @@ export const nativePhpHandler:PhpHandler = async(request, env) => {
   if (storageUnsafe) return Response.json({error:"MEDIA_WRITE_FAILURE"},{status:503});
   if (!mayServePreview(url,env)) return Response.json({error:"PREVIEW_ONLY_NO_DURABLE_DB"},{status:503,headers:{"Cache-Control":"no-store"}});
   if (!["GET","HEAD","POST","PUT","PATCH","DELETE","OPTIONS"].includes(request.method)) return new Response("Method Not Allowed",{status:405,headers:{Allow:"GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS"}});
-  const declared=Number(request.headers.get("content-length")??0);
-  if (declared>MAX_BODY_BYTES) return new Response("Request body too large",{status:413});
-  let body:Uint8Array=new Uint8Array();
-  if (request.method!=="GET" && request.method!=="HEAD") {
-    body=new Uint8Array(await request.arrayBuffer());
-    if (body.byteLength>MAX_BODY_BYTES) return new Response("Request body too large",{status:413});
+  let body:Uint8Array;
+  try {
+    const bounded=await readBoundedRequestBody(request);
+    if(bounded===null)return new Response("Request body too large",{status:413});
+    body=bounded;
+  } catch {
+    return new Response("Invalid request body",{status:400});
   }
   return oneAtATime(async()=>{
     try {
