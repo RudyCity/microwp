@@ -1,5 +1,9 @@
 # microWP
 
+**Open source:** GNU GPL-2.0-or-later · **Status:** Experimental Alpha · **Not production-ready**
+
+> This project is not affiliated with or endorsed by the WordPress Foundation, Automattic, or Cloudflare.
+
 A native Cloudflare Workers engine for REAL WordPress, powered by PHP 8.4 WebAssembly. This is NOT a static WordPress export or a replacement CMS.
 
 ## Status: LOCAL PREVIEW / PRODUCTION NO-GO (2026-11-05)
@@ -44,3 +48,7 @@ Cloudflare Wrangler is not authenticated (expired token); no staging or producti
 See docs/plans/2026-11-05-microwp-master-plan.md and docs/plans/2026-11-05-microwp-persistence-design.md.
 
 WordPress, SQLite integration and WordPress Playground PHP-WASM are GPL-2.0-or-later. Preserve licenses/notices and publish corresponding source as required.
+
+## Community and license
+
+microWP original code is licensed under **GPL-2.0-or-later**; see [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Contributions welcome via [CONTRIBUTING.md](CONTRIBUTING.md), with [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) and [SECURITY.md](SECURITY.md) for community guidelines and private vulnerability reporting. Do not deploy this alpha to handle real user data.
