@@ -26,3 +26,9 @@ Status: public open-source experimental alpha v0.2.0-alpha.4; staging locked; NO
 - The PHP request body byte cap is enforced by a bounded streaming reader, even without Content-Length. Do not regress to an unbounded `request.arrayBuffer()`.
 - The R2 upload key predicate must stay consistent with the orphan audit; never permit ambiguous reserved/encoded paths or auto-delete unproven orphan candidates.
 - The ZIP index fastpath and the private D1 adapter are **prototypes not yet wired to production**, and Cloudflare startup CPU plus 128 MB memory remain blocking.
+
+## Stage-3 production-critical safeguards
+
+- Keep active WordPress `wpdb` on the existing pinned SQLite integration until full direct-D1 SQL equivalence, migrations, rollback and real E2E pass. The Stage-3 `src/php/d1-wpdb/db.php` is an opt-in read-only proof, never automatically mounted.
+- Stage-3 native migration plans are offline only with `productionReady:false` and `remoteExecutionAllowed:false`; never replay generated DDL on a live D1 database without independent review and approval.
+- Do not confuse local Workerd wall timing with actual Cloudflare invocation CPU. Free Workers has a 10ms CPU request budget; do not claim WordPress production-ready without actual CPU/memory proof.

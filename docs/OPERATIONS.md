@@ -19,7 +19,7 @@ bun run e2e:local
 bun run production:preflight
 ```
 
-The last command **must fail today**, because production gates are not proven.
+The last command **must fail today**, because production gates are not proven. Two explicit gates are reserved for the chosen production architecture: `MICROWP_WORDPRESS_CPU_VERIFIED` requires real cold/warm Cloudflare CPU success under the configured plan, and `MICROWP_NATIVE_D1_WPDB_VERIFIED` requires full WordPress `wpdb` query compatibility **directly on D1** plus a lossless reversible migration. Neither a successful local workerd test nor an opaque SQLite snapshot in D1 qualifies. Do not set these attestations until independent E2E evidence exists.
 
 ## Cloudflare staging (deployed, locked)
 
@@ -65,3 +65,7 @@ See the [alpha.4 recovery and direct D1 messaging report](reports/2026-11-05-alp
 - Rich media image processing and large library hydration (current preview limit: 32 files / 16 MiB).
 - Backups, independent restore and disaster-recovery drills; observability, alerting, WAF and incident response.
 - Release candidate security review and explicit approval before public dynamic traffic or DNS cutover.
+
+## Stage-3 CPU and native-D1 next gates
+
+The Stage-3 work is recorded in `docs/reports/2026-11-06-microwp-critical-path-outcome.md`. The PHP `wpdb` read-only proof remains **disabled** and the local SQLite→D1 migration planner is not permitted to run against remote resources. Independent CPU and direct-D1 attestations in `production:preflight` are still **BLOCK**, with no account-level plan or billing changes made. A compute tier/architecture capable of full WordPress PHP (and measured under 128MB) requires explicit owner authorization before any production-oriented cutover.

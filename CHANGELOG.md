@@ -2,6 +2,17 @@
 
 All notable user-visible changes to microWP are documented here.
 
+## [0.2.0-alpha.5] — WordPress CPU investigation and native-D1 migration proof (2026-11-06)
+
+**Experimental Alpha — production NO-GO.**
+
+- Introduced opt-in PHP `wpdb` `db.php` read-only SELECT protocol proof, with strict versioned envelope and fail-closed unsupported SQL. Not installed as a WordPress database driver.
+- Added local-only, bounded SQLite→D1 migration planner, schema/index/sequence fidelity checks, and real installed WordPress snapshot roundtrip evidence (21 tables, 29 indexes). Never changed remote D1 or deleted the original snapshot.
+- Corrected local bootstrap profiler: Wrangler/Miniflare needs Node.js (not Bun) to forward requests. Local installer HTTP 200 twice; first 3215.701ms wall, repeat 1522.496ms wall. Worker CPU/RAM remained unmeasured.
+- Added independent production gates for **real Cloudflare WordPress CPU** and **direct D1 `wpdb` E2E**; neither is attested by local tests.
+- Added cross-platform regression tests, audit/report and explicit deployment tradeoffs. Full local WordPress E2E and the locked public staging 10/10 safety checks pass.
+- Actual Cloudflare WordPress startup `exceededCpu`, 128 MB peak-memory conformance, native D1 transaction/WordPress compatibility and reversible live cutover remain blocking. No billing or DNS change.
+
 ## Unreleased — Stage-2 four-chat Delegate integration and request hardening (2026-11-05)
 
 - All four parallel Delegate chats remained open through completion and produced distinct files for D1 adapter, WordPress ZIP index fastpath, conservative R2 evidence extractor, and independent QA.

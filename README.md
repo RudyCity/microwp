@@ -6,7 +6,7 @@
 [![Status: Experimental Alpha](https://img.shields.io/badge/status-experimental%20alpha-orange.svg)](CHANGELOG.md)
 [![CI](https://github.com/RudyCity/microwp/actions/workflows/ci.yml/badge.svg)](https://github.com/RudyCity/microwp/actions/workflows/ci.yml)
 
-> **Experimental alpha v0.2.0-alpha.4 — NOT production-ready.** Never deploy with real accounts, production databases or live traffic. Public dynamic WordPress requests are intentionally blocked by default.
+> **Experimental alpha v0.2.0-alpha.5 — NOT production-ready.** Never deploy with real accounts, production databases or live traffic. Public dynamic WordPress requests are intentionally blocked by default.
 
 microWP runs **official WordPress 7.1.4** and **PHP 8.4.27 WebAssembly** inside the Cloudflare Workers runtime. It is not a static-site exporter or a replacement CMS. This project is **not affiliated with or endorsed by WordPress Foundation, Automattic, or Cloudflare**.
 
@@ -17,7 +17,7 @@ microWP runs **official WordPress 7.1.4** and **PHP 8.4.27 WebAssembly** inside 
 - **Normal process restart** preserves WordPress installation, published/edited article, login session and public pages. D1 now journals media deletions in the same transaction as each SQLite image, replaying incomplete R2 deletes after an interrupted process.
 - **Cloudflare R2 wp-content** stores WordPress uploads under `wp-content/uploads/`; read-only theme/plugin static assets can be supplied from R2 with bundled files as fallback. PHP theme/plugin code remains immutable and is never executed from R2.
 - Reproducible WordPress and SQLite source downloads, pinned SHA256 checks, lazy ZIP-mounted PHP and theme/block metadata, and separate edge static assets.
-- 62 unit tests plus the full WordPress local workerd E2E script. Tests and Worker bundle builds run in GitHub Actions.
+- 144 unit tests plus the full WordPress local workerd E2E script. Tests and Worker bundle builds run in GitHub Actions.
 - Fail-closed security controls: no public native WP routes, blocked config/secret paths, media file signature checks, request limits, disabled WP core/plugin auto-edit, and disabled dynamic page cache.
 
 ## Run locally
@@ -95,6 +95,17 @@ See [multi-chat integration evidence](docs/reports/2026-11-05-microwp-delegate-o
 Four distinct ChatGPT Delegate tabs completed separate, file-scoped tasks, with all tabs retained. The result includes a **private D1 runtime adapter prototype**, a measured but **not enabled** fast ZIP metadata indexer, a conservative **offline-only WordPress media reference scan** that never authorizes deletion, and an independent security audit. In response to that audit, PHP request bodies now use a bounded stream reader rather than unbounded `arrayBuffer()` and R2 uploads use a canonicalized key policy. No public WordPress routes were opened.
 
 See [Stage-2 orchestration and test results](docs/reports/2026-11-05-microwp-stage2-orchestrated-delivery.md) and [independent security findings](docs/reports/2026-11-05-microwp-stage2-security-and-e2e-audit.md). These modules remain experimental. In particular, **the direct WordPress-to-D1 `wpdb` driver does not exist yet**, and the live WordPress installer CPU blocker remains unresolved.
+
+## Stage-3 WordPress CPU and query-native D1 work (experimental)
+
+The CPU/DB critical-path implementation is recorded in [the detailed Stage-3 outcome](docs/reports/2026-11-06-microwp-critical-path-outcome.md):
+
+- A new **opt-in, read-only** PHP `db.php` query-transport proof demonstrates a guarded `SELECT` subset via PHP→JavaScript. It is **not** installed in WordPress and does **not** support production `wpdb` methods or transactional SQL.
+- A new **offline** WordPress SQLite-to-query-native-D1 migration planner preserves full SQL schema/index/sequence fidelity in a local roundtrip (real E2E snapshot: 21 tables / 29 indexes). It is intentionally marked `productionReady:false`, `remoteExecutionAllowed:false` and does not run on remote D1.
+- The PHP bootstrap profiler now launches Wrangler with **Node.js** instead of Bun/Miniflare. First local Workerd installer HTTP 200: **3,215.701 ms wall**; repeated HTTP 200: **1,522.496 ms wall**. Neither is a Cloudflare CPU or memory measurement.
+- Independent Cloudflare CPU and native D1 `wpdb` readiness gates are required by the production preflight. The prior **real Cloudflare** WordPress installer probe was still `exceededCpu` (~2,010 ms CPU). Cloudflare Workers Free allows 10 ms per request; this architecture has not been shown to fit that budget.
+
+**Production NO-GO persists.** No plan/billing or staging/public route change was made in Stage-3. The existing D1-backed SQLite snapshot adapter remains the active implementation.
 
 ## Important production limitations
 
