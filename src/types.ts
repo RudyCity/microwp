@@ -1,0 +1,34 @@
+/** Minimum Worker binding surfaces to keep core testable without Cloudflare credentials. */
+export interface CacheKV {
+  get(key: string, type: "text"): Promise<string | null>;
+  put(key: string, value: string, opts: { expirationTtl: number }): Promise<void>;
+  delete?(key: string): Promise<void>;
+}
+export interface MediaObject {
+  body: ReadableStream | null;
+  etag: string;
+  size: number;
+  httpMetadata?: { contentType?: string; cacheControl?: string };
+}
+export interface MediaR2 {
+  get(key: string): Promise<MediaObject | null>;
+  put(
+    key: string,
+    body: ReadableStream | ArrayBuffer | Uint8Array,
+    options: { httpMetadata: { contentType: string; cacheControl: string } }
+  ): Promise<unknown>;
+}
+export interface ServiceBinding { fetch(request: Request): Promise<Response> }
+export interface Env {
+  ASSETS?: ServiceBinding;
+  MEDIA?: MediaR2;
+  PAGE_CACHE?: CacheKV;
+  PHP_BACKEND?: ServiceBinding;
+  CACHE_TTL?: string;
+  CACHE_VERSION?: string;
+  /** Future persistent URL and credentials. Not enabled until a durable DB exists. */
+  WP_PUBLIC_URL?: string;
+  WP_SECRET_KEY?: string;
+}
+export interface ExecutionCtx { waitUntil(promise: Promise<unknown>): void }
+export type PhpHandler = (request: Request, env: Env) => Promise<Response>;

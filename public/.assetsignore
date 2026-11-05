@@ -1,0 +1,6 @@
+*.php
+*.inc
+*.sql
+*.env
+*.log
+*.map

@@ -1,0 +1,30 @@
+name: microWP
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: bun install --frozen-lockfile
+      - name: Fetch pinned official sources
+        run: bun run sources:fetch
+      - name: Package WordPress code and assets
+        run: bun run wordpress:prepare
+      - name: Unit tests and types
+        run: bun run check
+      - name: Edge Worker bundle
+        run: bun run build
+      - name: Native WordPress bundle
+        run: bun run native:build
+      - name: Durable WordPress bundle
+        run: bun run durable:build

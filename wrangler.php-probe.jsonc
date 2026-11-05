@@ -1,0 +1,7 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "microwp-php-probe",
+  "main": "experiments/php-wasm-worker.ts",
+  "compatibility_date": "2026-11-04",
+  "workers_dev": true
+}
