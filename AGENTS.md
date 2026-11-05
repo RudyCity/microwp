@@ -39,3 +39,11 @@ Status: public open-source experimental alpha v0.2.0-alpha.4; staging locked; NO
 - Do not claim full native WordPress PHP-WASM works under 10ms CPU on Workers Free; previous real installer failed with `exceededCpu`.
 - Experimental Free-preview code in `src/free-site/` and `wrangler.free-preview.jsonc` is disabled and separated from deployed WordPress staging; no deployment or public WordPress cutover without approval.
 - A trusted WordPress-to-static exporter is still required before the Free preview can represent a real published WordPress site. Static publication is a product tradeoff, not a transparent drop-in equivalent to live wp-admin.
+
+## Product requirement clarified: REAL WordPress runs inside Cloudflare Workers Free (2026-11-06)
+
+- User explicitly requires **real WordPress server-side PHP to execute on Cloudflare Workers or SQLite-backed Durable Objects**, with admin/hooks/plugins, D1 and R2. **DO NOT replace the main architecture with static HTML exports or browser-only WordPress Playground.**
+- The existing `src/free-site/` static preview is a prior optional proof, **not the approved solution**. Keep it disabled and do not present it as a substitute for live WordPress.
+- Cloudflare Workers Free only: no billing upgrade, paid plans, billing mutations or paid compute. DO CPU Free semantics are ambiguous in official docs; **verify with an isolated private canary** before claiming 30-second CPU.
+- Research priorities: real Free DO CPU trace, PHP-WASM JSPI vs Asyncify, WordPress phase CPU/memory, OpCache/persistent runtime, direct D1 `wpdb`, R2 recovery. Respect 128 MB, 10 ms Worker ingress, and fail-closed production status.
+- Read `docs/research/2026-11-06-real-wordpress-cloudflare-workers-free.md` before assigning further work. No unsupported production claims or public WordPress routes.

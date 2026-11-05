@@ -107,6 +107,8 @@ The CPU/DB critical-path implementation is recorded in [the detailed Stage-3 out
 
 **Production NO-GO persists.** No plan/billing or staging/public route change was made in Stage-3. The existing D1-backed SQLite snapshot adapter remains the active implementation.
 
+> **Product direction clarification (2026-11-06):** The user requires **real server-side WordPress PHP on Cloudflare Workers Free**, not static HTML publication. The Free static preview documented below is an **unused, disabled experiment**, not the planned production replacement. See [research on running actual WordPress in Workers Free](docs/research/2026-11-06-real-wordpress-cloudflare-workers-free.md) for the Durable Objects CPU-limit ambiguity, JSPI/OpCache possibilities and verification gates. Full WordPress remains production NO-GO.
+
 ## Workers Free only — optional static publishing preview
 
 **No paid plan is required or authorized.** The 10 ms Workers Free CPU limit makes the current full PHP-WASM WordPress bootstrap unsuitable for public requests. An **experimental, disabled-by-default alternative** is now implemented separately:
