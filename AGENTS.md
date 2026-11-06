@@ -69,3 +69,9 @@ Status: public open-source experimental alpha v0.2.0-alpha.4; staging locked; NO
 - A WordPress drop-in changes `wp_using_ext_object_cache()` behavior and thus Transients API persistence; this implementation is **not production-ready**. Require full WordPress editorial/REST/plugin/cache invalidation regression before enabling even for private staging.
 - `wrangler.wp-cache-local-proof.jsonc` is local-only; NEVER deploy that proof Worker. Run `bun run wp-object-cache:build` (dry-run), `bun run wp-object-cache:e2e` and `bun run check`.
 - Explicitly dispose returned RPC results/stubs. No paid plan, billing or public WordPress route changes.
+
+## WordPress editorial cache invalidation E2E (2026-11-06)
+
+- Source of truth is real PHP-WASM WordPress with its D1 SQL snapshot and R2 media. Only on opt-in `MICROWP_WORKER_CACHE_ENABLED=yes` plus a trusted Service Binding does the Durable Object invalidate `microwp_public` after successful D1/R2 persistence. Mutation methods are POST/PUT/PATCH/DELETE; failed RPC must never be reported as successful invalidation.
+- New local-only `wrangler.wp-cache-editorial-local.jsonc`, scripts `wp-cache:editorial-build` and `wp-cache:editorial-e2e` must never be remotely deployed. They use an isolated local D1 namespace, R2 bucket, random demo WordPress credentials, and loopback-only fixed-key diagnostics.
+- Editorial E2E covers install/login/post/category/option/media/restart and cache seed→hit→miss. This does not mean core WordPress cache groups are persisted, nor does it validate Transients API or Free Cloudflare CPU. **Do not enable live WordPress cache or public WordPress routes.**

@@ -33,7 +33,9 @@
     "worker-cache:build": "wrangler deploy --config wrangler.worker-cache.jsonc --dry-run --outdir dist-worker-cache",
     "worker-cache:e2e": "bun scripts/worker-cache-local-e2e.ts",
     "wp-object-cache:build": "bun run wasm:prepare && wrangler deploy --config wrangler.wp-cache-local-proof.jsonc --dry-run --outdir dist-wp-cache-proof",
-    "wp-object-cache:e2e": "bun scripts/wp-object-cache-local-e2e.ts"
+    "wp-object-cache:e2e": "bun scripts/wp-object-cache-local-e2e.ts",
+    "wp-cache:editorial-build": "wrangler deploy --config wrangler.wp-cache-editorial-local.jsonc --dry-run --outdir dist-wp-cache-editorial",
+    "wp-cache:editorial-e2e": "bash scripts/wp-cache-editorial-e2e.sh"
   },
   "dependencies": {
     "@php-wasm/universal": "3.1.62",

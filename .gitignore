@@ -33,3 +33,6 @@ dist-worker-cache/
 
 # Local-only WordPress PHP object cache proof bundle
 dist-wp-cache-proof/
+
+# Isolated local-only WordPress + Worker cache editorial build
+dist-wp-cache-editorial/

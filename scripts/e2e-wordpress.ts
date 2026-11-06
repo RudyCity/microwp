@@ -3,7 +3,11 @@ import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 
 const base=process.env.MICROWP_E2E_URL??"http://127.0.0.1:8796";
-const authPath=join(".wrangler","e2e-local-auth.json");
+const authBasename=process.env.MICROWP_E2E_AUTH_BASENAME??"e2e-local-auth.json";
+if(!/^[a-z0-9][a-z0-9-]{0,80}\.json$/.test(authBasename)){
+ throw Error("Unsafe local WordPress E2E auth fixture basename");
+}
+const authPath=join(".wrangler",authBasename);
 const mode=process.argv[2]??"install";
 const output = (label:string,ok:boolean,detail="") => { console.log((ok?"PASS ":"FAIL ")+label+(detail?" — "+detail:""));if(!ok)process.exitCode=1; };
 async function get(path:string,init:RequestInit={}){return fetch(base+path,{redirect:"manual",...init});}

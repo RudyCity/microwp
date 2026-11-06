@@ -2,6 +2,13 @@
 
 All notable user-visible changes to microWP are documented here.
 
+## Unreleased — WordPress editorial with opt-in Worker cache and post-commit invalidation (2026-11-06)
+
+- Full real WordPress PHP-WASM D1/R2 REST editorial E2E with cache enabled: install/login, publish and update post, create/rename category and attach to post, edit blog title, upload/delete PNG, restart and verify persistence.
+- Invalidate only `microwp_public` cache keys after D1 snapshot + R2 media journal commit on mutating requests; preserve other groups and report Service Binding failure without claiming success.
+- Local-only diagnostic proves seed→hit→miss around WordPress REST writes, and additional unit/security gates plus CI E2E cover this behavior.
+- No live WordPress configuration or billing changes. Transients API compatibility and actual Free Cloudflare DO CPU/memory evidence remain open production blockers.
+
 ## Unreleased — Opt-in WordPress PHP object-cache Service Binding bridge (2026-11-06)
 
 - Build the `object-cache.php` drop-in from the pinned official WordPress core Cache API without changing the default WordPress installation.

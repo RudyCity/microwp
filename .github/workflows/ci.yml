@@ -46,3 +46,7 @@ jobs:
         run: bun run wp-object-cache:build
       - name: Real PHP-WASM WordPress cache group invalidation in local DO
         run: bun run wp-object-cache:e2e
+      - name: WordPress cache editorial with D1 R2 and Service Binding (dry-run bundle)
+        run: bun run wp-cache:editorial-build
+      - name: Full authenticated WordPress editorial and cache invalidation E2E
+        run: bun run wp-cache:editorial-e2e

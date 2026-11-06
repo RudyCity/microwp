@@ -10,6 +10,7 @@ import {getR2WpContentStatic} from "./wp-content-static";
 import {mayServePreview} from "./php/config";
 import {isAuthorizedProbe,PROBE_PATH} from "./staging-probe";
 import {runNativeStagingProbe,runNativeD1SqlBridgeProbe} from "./php/native";
+import {invalidatePublicCacheAfterCommit} from "./php/worker-cache-invalidation";
 interface DurableEnv extends Env {SITE_DO:DurableObjectNamespace<MicroWPSite>}
 function isLocal(host:string):boolean {return host==="localhost" || host==="127.0.0.1";}
 
@@ -83,6 +84,15 @@ export class MicroWPSite extends DurableObject<DurableEnv> {
           if(snapshot)await saveSQLiteSnapshot(this.ctx.storage as unknown as SnapshotStore,snapshot);
           await finalizeNativeMedia(this.runtimeEnv!);
         }
+        // Invalidate only after the database snapshot + R2 deletion journal
+        // have committed. Cache is derived state, never an authority for writes.
+        // If a Service Binding call fails, immutable revisioned cache keys
+        // remain mandatory; never claim a successful invalidation.
+        const invalidation=await invalidatePublicCacheAfterCommit(
+          req.method,this.env.MICROWP_WORKER_CACHE_ENABLED,this.env.REDIS_WORKER
+        );
+        if(invalidation==="unavailable")
+          console.warn("microWP public cache invalidation unavailable after DB commit");
         return response;
       } catch(e) {
         this.failed=true;

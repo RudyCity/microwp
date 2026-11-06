@@ -120,6 +120,16 @@ A dedicated **Cloudflare Worker + one Durable Object per site** now implements t
 
 This is **not** a full Redis engine, Redis TCP/RESP protocol or a drop-in replacement for the WordPress Redis Object Cache plugin. A PHP-WASM object-cache bridge and correct WordPress invalidation still need separate validation before enabling the cache for live WordPress. This does not itself solve WordPress `exceededCpu`. Details: [Worker-only Redis-like cache design and safety](docs/reports/2026-11-06-microwp-worker-only-redis-cache.md).
 
+## WordPress editorial + Worker cache: post-commit invalidation (local proof)
+
+The real PHP-WASM WordPress + D1/R2 site now supports **opt-in post-commit invalidation** of the separately hosted, internal Redis-like Worker cache. On HTTP POST/PUT/PATCH/DELETE, the Durable Object only clears derived `microwp_public` cache keys **after** authoritative D1 snapshot and media journal commit; the API call does not invent success if the Service Binding is unavailable. Immutable, content-revision-derived keys remain mandatory because invalidation is best-effort.
+
+- `bun run wp-cache:editorial-build` — isolated local-only dry-run, no deployment.
+- `bun run wp-cache:editorial-e2e` — two Workers in local Workerd, with real WordPress installer, login, REST create/update post/category/site title, R2 upload/delete, cache seed→hit→miss on writes, restart preservation and D1 journal check.
+- The existing Cloudflare staging **still does not enable this cache** and public WordPress routes remain locked. Transients API semantic parity and actual Cloudflare Free CPU/RAM are pending, so production is NO-GO.
+
+See [full WordPress editorial cache invalidation E2E evidence](docs/reports/2026-11-06-microwp-wordpress-cache-editorial-invalidation.md).
+
 ## WordPress `wp_cache_*` → dedicated Worker cache (opt-in, local proof)
 
 The PHP-WASM runtime now supports a **disabled-by-default** object-cache drop-in. It preserves WordPress's pinned `wp_cache_*` API and sends only the explicit, immutable, revision-keyed `microwp_public` group to the internal cache Worker via PHP→JavaScript→Service Binding. Other WordPress cache groups stay request-local; no user/session/private data is sent to the Worker cache. The caller never accepts an HTTP-supplied site identity.
