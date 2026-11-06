@@ -172,3 +172,11 @@ Status: public open-source experimental alpha v0.2.0-alpha.5; staging locked; NO
 - Nullable meta uses a sentinel to distinguish genuine NULL from invalid/oversized data; never silently reinterpret overlarge values as absent. All operations fail closed on unexpected result columns, ordering, IDs, duplicated identities, overflow, or wrong capabilities.
 - bun run d1:option-mutation-e2e validates all new read families on real localhost Workerd D1 and after restart. Also run all focused unit suites, bun run check, bun run e2e:local and dry-run builds. Do not deploy the local proof Worker.
 - Native wpdb activation still requires canonical schema mapping, safe writes, comments/query/count/search coverage, role/auth integration, reversible migration, backups/security, real remote Free D1/R2 quotas and Cloudflare CPU/memory evidence. Production remains fail-closed.
+
+## R36 core mutations and comments (2026-11-06)
+
+- Keep core-mutations.ts and comments.ts private/non-installed. All SQL is host-owned/prepared and every operation has a distinct opaque capability. Caller-controlled site/table/raw SQL is forbidden.
+- Post INSERT uses a complete bounded fixture row; post UPDATE permits at most eight approved fields and cannot change ID/site scope. Postmeta INSERT must prove its parent post exists in the same site in the same statement; update/delete are site + meta_id scoped. Do not implement post DELETE until dependent metadata, taxonomy, comments, media, cache and crash recovery are atomic/recoverable.
+- Comment COUNT/read are bounded IN/GROUP/ORDER operations; comment INSERT is same-site parent guarded; commentmeta is bounded and ordered. Never log comment content or expose proof endpoints remotely.
+- Explicit IDs are test-fixture semantics only. Canonical WordPress AUTO_INCREMENT, insert_id, affected rows, hooks, comment_count, moderation and cache invalidation are NOT implemented.
+- Do not extend db.php by guessing write SQL from the categorical R36 census. Require an exact sanitized template corpus or typed WordPress integration before opt-in activation. Run focused tests, local Workerd D1, full check, real WordPress e2e and dry-run builds before commit. Production remains fail-closed.

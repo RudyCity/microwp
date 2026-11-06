@@ -118,3 +118,43 @@ INSERT INTO wp_term_relationships VALUES
 ('site_a',1,11,1),
 ('site_a',3,10,0),
 ('site_b',2,10,0);
+
+
+CREATE TABLE wp_comments (
+  site_id TEXT NOT NULL,
+  comment_ID INTEGER NOT NULL,
+  comment_post_ID INTEGER NOT NULL,
+  comment_karma INTEGER NOT NULL,
+  comment_parent INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  comment_author TEXT NOT NULL,
+  comment_author_email TEXT NOT NULL,
+  comment_author_url TEXT NOT NULL,
+  comment_author_IP TEXT NOT NULL,
+  comment_date TEXT NOT NULL,
+  comment_date_gmt TEXT NOT NULL,
+  comment_content TEXT NOT NULL,
+  comment_approved TEXT NOT NULL,
+  comment_agent TEXT NOT NULL,
+  comment_type TEXT NOT NULL,
+  UNIQUE(site_id,comment_ID)
+);
+INSERT INTO wp_comments VALUES
+('site_a',10,1,0,0,1,'Rudy','rudy@example.test','','127.0.0.1','2026-11-06 00:00:00','2026-11-06 00:00:00','approved','1','microWP-test','comment'),
+('site_a',11,1,0,0,1,'Rudy','rudy@example.test','','127.0.0.1','2026-11-06 00:00:00','2026-11-06 00:00:00','pending','0','microWP-test','comment'),
+('site_a',12,3,0,0,1,'Rudy','rudy@example.test','','127.0.0.1','2026-11-06 00:00:00','2026-11-06 00:00:00','second approved','1','microWP-test','comment'),
+('site_b',10,2,0,0,2,'PRIVATE','private@example.test','','127.0.0.2','2026-11-06 00:00:00','2026-11-06 00:00:00','PRIVATE','1','private','comment');
+
+CREATE TABLE wp_commentmeta (
+  site_id TEXT NOT NULL,
+  meta_id INTEGER NOT NULL,
+  comment_id INTEGER NOT NULL,
+  meta_key TEXT,
+  meta_value TEXT,
+  UNIQUE(site_id,meta_id)
+);
+INSERT INTO wp_commentmeta VALUES
+('site_a',20,10,'rating','5'),
+('site_a',21,10,'empty',''),
+('site_a',22,12,NULL,NULL),
+('site_b',20,10,'secret','PRIVATE');

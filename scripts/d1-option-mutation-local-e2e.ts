@@ -24,6 +24,39 @@ if(stage==="before-restart"){
   if(get.status!==404)throw Error("Public GET must be denied");
   console.log("PASS no public GET");
   if(JSON.stringify(await rows())!==JSON.stringify([b]))throw Error("Local fixture mismatch");
+  const comments=await request("/__local/comments-read");
+  if(comments.status!==200||comments.raw.ok!==true||
+     JSON.stringify(comments.raw.counts)!==
+       JSON.stringify([{comment_post_ID:1,count:1},{comment_post_ID:3,count:1}])||
+     !Array.isArray(comments.raw.rows)||comments.raw.rows.length!==3||
+     !Array.isArray(comments.raw.meta)||comments.raw.meta.length!==3||
+     JSON.stringify(comments.raw).includes("PRIVATE"))
+    throw Error("Local D1 comments/count/commentmeta proof failed or leaked site B");
+  const insertedComment=await request("/__local/comment-insert");
+  if(insertedComment.status!==200||
+     (insertedComment.raw.result as Record<string,unknown>)?.changed!==1)
+    throw Error("Local D1 comment INSERT failed");
+  console.log("PASS native D1 comment count/read/meta and parent-guarded insert stay site-scoped");
+  const insertedCore=await request("/__local/core-write-insert");
+  if(insertedCore.status!==200||
+     (insertedCore.raw.post as Record<string,unknown>)?.changed!==1||
+     (insertedCore.raw.meta as Record<string,unknown>)?.changed!==1)
+    throw Error("Native D1 post/postmeta INSERT proof failed");
+  const updatedCore=await request("/__local/core-write-update");
+  if(updatedCore.status!==200||
+     (updatedCore.raw.post as Record<string,unknown>)?.changed!==1||
+     (updatedCore.raw.meta as Record<string,unknown>)?.changed!==1)
+    throw Error("Native D1 post/postmeta UPDATE proof failed");
+  const coreState=await request("/__local/core-write-state");
+  const statePosts=coreState.raw.posts as Array<Record<string,unknown>>;
+  const stateMeta=coreState.raw.meta as Array<Record<string,unknown>>;
+  if(coreState.status!==200||!Array.isArray(statePosts)||statePosts.length!==1||
+     statePosts[0]?.ID!==5||statePosts[0]?.post_title!=="Native D1 Published"||
+     statePosts[0]?.post_status!=="publish"||
+     !Array.isArray(stateMeta)||stateMeta.length!==1||
+     stateMeta[0]?.meta_id!==30||stateMeta[0]?.meta_value!=="green")
+    throw Error("Native D1 core write/read consistency failed");
+  console.log("PASS native D1 post INSERT/UPDATE and postmeta INSERT/UPDATE are read-consistent");
   const taxonomy=await request("/__local/taxonomy-read");
   if(taxonomy.status!==200||taxonomy.raw.ok!==true||
      !Array.isArray(taxonomy.raw.rows)||taxonomy.raw.rows.length!==3||
@@ -141,6 +174,25 @@ if(stage==="before-restart"){
   if(JSON.stringify(await rows())!==JSON.stringify(expected))
     throw Error("Committed option not durable across Workerd restart");
   console.log("PASS native D1 option survives local Workerd restart");
+  const coreWriteAfterRestart=await request("/__local/core-write-state");
+  const restartPosts=coreWriteAfterRestart.raw.posts as Array<Record<string,unknown>>;
+  const restartMeta=coreWriteAfterRestart.raw.meta as Array<Record<string,unknown>>;
+  if(coreWriteAfterRestart.status!==200||!Array.isArray(restartPosts)||
+     restartPosts.length!==1||restartPosts[0]?.post_title!=="Native D1 Published"||
+     !Array.isArray(restartMeta)||restartMeta.length!==1||
+     restartMeta[0]?.meta_value!=="green")
+    throw Error("Native D1 core writes did not survive restart");
+  const commentsAfterRestart=await request("/__local/comments-read");
+  if(commentsAfterRestart.status!==200||
+     !Array.isArray(commentsAfterRestart.raw.rows)||
+     commentsAfterRestart.raw.rows.length!==4||
+     JSON.stringify(commentsAfterRestart.raw).includes("PRIVATE"))
+    throw Error("Native D1 inserted comment did not survive restart");
+  const cleanupMeta=await request("/__local/core-meta-delete");
+  if(cleanupMeta.status!==200||
+     (cleanupMeta.raw.meta as Record<string,unknown>)?.changed!==1)
+    throw Error("Native D1 postmeta cleanup failed after restart");
+  console.log("PASS native D1 post/postmeta writes and comment insert survive Workerd restart");
   const taxonomyAfterRestart=await request("/__local/taxonomy-read");
   if(taxonomyAfterRestart.status!==200||
      !Array.isArray(taxonomyAfterRestart.raw.rows)||

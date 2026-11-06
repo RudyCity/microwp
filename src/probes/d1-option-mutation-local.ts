@@ -9,6 +9,8 @@ import {executePinnedWordPressOptionUpsert,PINNED_WP_OPTION_UPSERT_TEMPLATE} fro
 import {readPrivateCorePostsByIds,readPrivatePostMetaByPostIds} from "../php/d1-wpdb-conformance/core-reads";
 import {readPrivateUserAuthByLogin,readPrivateUserMetaByUserIds} from "../php/d1-wpdb-conformance/user-reads";
 import {readPrivateObjectTerms} from "../php/d1-wpdb-conformance/taxonomy-reads";
+import {insertPrivateCorePost,updatePrivateCorePost,insertPrivatePostMeta,updatePrivatePostMeta,deletePrivatePostMeta} from "../php/d1-wpdb-conformance/core-mutations";
+import {countPrivateApprovedCommentsByPostIds,readPrivateCommentsByPostIds,insertPrivateComment,readPrivateCommentMetaByCommentIds} from "../php/d1-wpdb-conformance/comments";
 interface Env {DB:D1Database}
 const putCap=Object.freeze({hostOnly:"put"}),deleteCap=Object.freeze({hostOnly:"delete"});
 const readCap=Object.freeze({hostOnly:"read"});
@@ -19,6 +21,37 @@ const userAuthCap=Object.freeze({hostOnly:"user-auth"}),userMetaCap=Object.freez
 const USER_READ_CONFIG={scope:{column:"site_id",value:"site_a"},authCapability:userAuthCap,userMetaCapability:userMetaCap} as const;
 const taxonomyCap=Object.freeze({hostOnly:"taxonomy"});
 const TAXONOMY_READ_CONFIG={scope:{column:"site_id",value:"site_a"},capability:taxonomyCap} as const;
+const coreWriteCaps={
+  postInsert:Object.freeze({hostOnly:"post-insert"}),
+  postUpdate:Object.freeze({hostOnly:"post-update"}),
+  postMetaInsert:Object.freeze({hostOnly:"postmeta-insert"}),
+  postMetaUpdate:Object.freeze({hostOnly:"postmeta-update"}),
+  postMetaDelete:Object.freeze({hostOnly:"postmeta-delete"})
+};
+const CORE_WRITE_CONFIG={scope:{column:"site_id",value:"site_a"},capabilities:coreWriteCaps} as const;
+const commentCaps={
+  read:Object.freeze({hostOnly:"comment-read"}),
+  insert:Object.freeze({hostOnly:"comment-insert"}),
+  metaRead:Object.freeze({hostOnly:"commentmeta-read"})
+};
+const COMMENT_CONFIG={scope:{column:"site_id",value:"site_a"},capabilities:commentCaps} as const;
+const PROOF_POST={
+  ID:5,post_author:7,post_parent:0,menu_order:0,comment_count:0,
+  post_date:"2026-11-06 00:00:00",post_date_gmt:"2026-11-06 00:00:00",
+  post_content:"native body",post_title:"Native D1 Draft",post_excerpt:"",
+  post_status:"draft",comment_status:"open",ping_status:"open",post_password:"",
+  post_name:"native-d1-draft",to_ping:"",pinged:"",
+  post_modified:"2026-11-06 00:00:00",post_modified_gmt:"2026-11-06 00:00:00",
+  post_content_filtered:"",guid:"https://example.test/?p=5",
+  post_type:"post",post_mime_type:""
+} as const;
+const PROOF_COMMENT={
+  comment_ID:30,comment_post_ID:1,comment_karma:0,comment_parent:0,user_id:1,
+  comment_author:"Rudy",comment_author_email:"rudy@example.test",comment_author_url:"",
+  comment_author_IP:"127.0.0.1",comment_date:"2026-11-06 00:00:00",
+  comment_date_gmt:"2026-11-06 00:00:00",comment_content:"native D1 comment",
+  comment_approved:"1",comment_agent:"microWP-local",comment_type:"comment"
+} as const;
 const SCHEMA_CONFIG={table:"wp_options",capability:schemaCap} as const;
 const CONFIG={table:"wp_options",scope:{column:"site_id",value:"site_a"},
   writeCapabilities:{put:putCap,delete:deleteCap}} as const;
@@ -45,6 +78,55 @@ export default {
     try{
       if(url.pathname==="/__local/read"){
         return Response.json({ok:true,rows:await read(env.DB)},{headers:HEADERS});
+      }
+      if(url.pathname==="/__local/core-write-insert"){
+        const post=await insertPrivateCorePost(
+          PROOF_POST,CORE_WRITE_CONFIG,env.DB,coreWriteCaps.postInsert
+        );
+        const meta=await insertPrivatePostMeta(
+          {meta_id:30,post_id:5,meta_key:"color",meta_value:"blue"},
+          CORE_WRITE_CONFIG,env.DB,coreWriteCaps.postMetaInsert
+        );
+        return Response.json({ok:true,post,meta},{headers:HEADERS});
+      }
+      if(url.pathname==="/__local/core-write-update"){
+        const post=await updatePrivateCorePost(
+          5,{post_title:"Native D1 Published",post_status:"publish"},
+          CORE_WRITE_CONFIG,env.DB,coreWriteCaps.postUpdate
+        );
+        const meta=await updatePrivatePostMeta(
+          30,{meta_value:"green"},CORE_WRITE_CONFIG,env.DB,coreWriteCaps.postMetaUpdate
+        );
+        return Response.json({ok:true,post,meta},{headers:HEADERS});
+      }
+      if(url.pathname==="/__local/core-write-state"){
+        const posts=await readPrivateCorePostsByIds([5],CORE_READ_CONFIG,env.DB,postsCap);
+        const meta=await readPrivatePostMetaByPostIds([5],CORE_READ_CONFIG,env.DB,postMetaCap);
+        return Response.json({ok:true,posts,meta},{headers:HEADERS});
+      }
+      if(url.pathname==="/__local/core-meta-delete"){
+        const meta=await deletePrivatePostMeta(
+          30,CORE_WRITE_CONFIG,env.DB,coreWriteCaps.postMetaDelete
+        );
+        return Response.json({ok:true,meta},{headers:HEADERS});
+      }
+      if(url.pathname==="/__local/comments-read"){
+        const counts=await countPrivateApprovedCommentsByPostIds(
+          [3,2,1],["1"],COMMENT_CONFIG,env.DB,commentCaps.read
+        );
+        const rows=await readPrivateCommentsByPostIds(
+          [3,2,1],COMMENT_CONFIG,env.DB,commentCaps.read
+        );
+        const meta=await readPrivateCommentMetaByCommentIds(
+          [12,10],COMMENT_CONFIG,env.DB,commentCaps.metaRead
+        );
+        return Response.json({ok:true,counts,rows,meta},{headers:HEADERS});
+      }
+      if(url.pathname==="/__local/comment-insert"){
+        const result=await insertPrivateComment(
+          PROOF_COMMENT,COMMENT_CONFIG,env.DB,commentCaps.insert
+        );
+        return Response.json({ok:true,result},{headers:HEADERS});
       }
       if(url.pathname==="/__local/taxonomy-read"){
         const rows=await readPrivateObjectTerms(

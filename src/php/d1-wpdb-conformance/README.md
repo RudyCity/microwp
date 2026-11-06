@@ -78,3 +78,11 @@ Reproduce: bun test tests/d1-wpdb-schema-metadata.test.ts tests/d1-wpdb-option-u
 core-reads.ts adds private typed one-query D1 reads for 1–16 full core post IDs and postmeta for up to 32 post IDs, with separate host-owned capabilities, strict site scope, deterministic ordering, overflow witnesses and SQL-side text bounds. user-reads.ts adds a separate sensitive auth capability for a minimal login row (ID, user_login, user_pass, user_status) plus a distinct 32-user usermeta batch. taxonomy-reads.ts adds one fixed three-table DISTINCT JOIN for up to 16 object IDs and eight explicit taxonomy names. None accepts raw SQL, caller-selected tables, scope, projections or ordering.
 
 These modules use an artificial site_id research fixture and are not canonical WordPress table-parity evidence. They are not imported by live WordPress, db.php, staging or the Durable Object runtime. Run bun test tests/d1-wpdb-core-reads.test.ts tests/d1-wpdb-user-reads.test.ts tests/d1-wpdb-taxonomy-reads.test.ts and bun run d1:option-mutation-e2e. See docs/reports/2026-11-06-microwp-r36-core-d1-read-families.md. Production remains NO-GO.
+
+## R36 core mutations and comments (non-installed)
+
+core-mutations.ts adds capability-separated, site-scoped prepared D1 proofs for complete bounded post INSERT, bounded post UPDATE, and postmeta INSERT/UPDATE/DELETE. Postmeta INSERT is parent-guarded in one INSERT ... SELECT WHERE EXISTS statement. Post DELETE is intentionally not implemented until postmeta/taxonomy/comments/media/cache cascade and crash recovery are proven.
+
+comments.ts adds fixed GROUP/COUNT for approved comments, ordered comment reads, a parent-guarded comment INSERT, and bounded commentmeta batch reads. Explicit fixture IDs are used; WordPress AUTO_INCREMENT/insert_id, moderation hooks, comment_count synchronization and canonical schema semantics remain blockers.
+
+Run bun test tests/d1-wpdb-core-mutations.test.ts tests/d1-wpdb-comments.test.ts and bun run d1:option-mutation-e2e. See docs/reports/2026-11-06-microwp-r36-core-mutations-and-comments.md. These modules are not connected to db.php or live WordPress. Production remains NO-GO.
