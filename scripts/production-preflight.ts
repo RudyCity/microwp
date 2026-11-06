@@ -19,7 +19,8 @@ requireGate("R2 media end-to-end",flag("MICROWP_MEDIA_E2E_VERIFIED"),"Provision 
 requireGate("Database crash/restart recovery",flag("MICROWP_DB_RESTORE_VERIFIED"),"Install WordPress, restart Worker, verify persisted posts/settings");
 requireGate("Cloudflare staging HTTP/admin/REST",flag("MICROWP_STAGING_VERIFIED"),"Deploy in private staging after authenticating Wrangler");
 requireGate("Live memory and CPU",flag("MICROWP_LIMITS_VERIFIED"),"Measure worst-case isolate peak under 128MB and Worker CPU");
-requireGate("Real WordPress bootstrap meets configured Cloudflare CPU budget",flag("MICROWP_WORDPRESS_CPU_VERIFIED"),"Real Cloudflare cold/warm installer, admin, REST and repeated requests must pass configured Workers CPU budget; 10ms Free is not met by current PHP-WASM path");
+requireGate("Real WordPress bootstrap meets Cloudflare Free CPU limits",flag("MICROWP_WORDPRESS_CPU_VERIFIED"),"Verify actual ingress Worker <=10ms and SQLite Durable Object <=30s CPU for cold/warm installer, admin, REST and editorial invocations; historical 2010ms failure ran in ingress, not DO");
+requireGate("Live D1/R2 Free query, subrequest and storage budgets",flag("MICROWP_FREE_STORAGE_QUOTAS_VERIFIED"),"Check actual per-invocation D1 <=50 queries plus Worker subrequest limits, D1 database <=500MB, account quotas, and bulk R2 media workloads on remote Cloudflare; local tests are insufficient");
 requireGate("WordPress query-level D1 wpdb conformance and migration",flag("MICROWP_NATIVE_D1_WPDB_VERIFIED"),"All wpdb queries must execute on D1 with verified SQL semantics, transaction/DDL support, lossless reversible migration and real WordPress E2E; D1 snapshot BLOBs are insufficient");
 requireGate("WordPress authentication/CSRF",flag("MICROWP_AUTH_VERIFIED"),"Login, logout, cookie, nonce, admin and restart E2E");
 requireGate("Security, backups and restore",flag("MICROWP_SECURITY_VERIFIED"),"Independent security/recovery testing and backup rehearsal");

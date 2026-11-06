@@ -10,6 +10,15 @@
 
 microWP runs **official WordPress 7.1.4** and **PHP 8.4.27 WebAssembly** inside the Cloudflare Workers runtime. It is not a static-site exporter or a replacement CMS. This project is **not affiliated with or endorsed by WordPress Foundation, Automattic, or Cloudflare**.
 
+## Cloudflare Free production hardening: D1/R2 durability (2026-11-06)
+
+The live production gate remains closed, but the existing WordPress/PHP-WASM storage route now has two additional **tested safety properties**:
+
+- **Independent D1 existence guard:** the site Durable Object records an independent, non-secret recovery marker before its first D1 snapshot commit. On a restart, a missing D1 manifest for a previously provisioned WordPress site returns **HTTP 503** instead of silently initializing a fresh installation. The real local Workerd E2E deliberately removes **only the isolated test D1 manifest**, proves 503, and never touches remote databases. `bun run d1:absence-e2e`.
+- **Free-tier D1/R2 request budget:** maximum supported 8 MiB snapshots and 32 media removals now use a bounded transactional D1 journal multi-row insert, a batched journal acknowledgment, and **two R2 bulk deletes** (canonical and legacy keys). The isolated regression validates 37 D1 queries + 2 R2 calls for the tested maximum-size write-and-drain path, below Free's 50 subrequest guideline. Other request paths and daily quotas still need actual Cloudflare measurements.
+
+These protections are not backups, do not implement query-native WordPress `wpdb`, and do not establish real Cloudflare CPU/memory or plugin compatibility. Production stays **NO-GO**. See [D1/R2 Free recovery hardening report](docs/reports/2026-11-06-microwp-free-d1-r2-recovery-hardening.md).
+
 ## Features verified in local workerd
 
 - Official WordPress install, login, authenticated dashboard, REST post creation/update and theme page rendering.
@@ -17,7 +26,7 @@ microWP runs **official WordPress 7.1.4** and **PHP 8.4.27 WebAssembly** inside 
 - **Normal process restart** preserves WordPress installation, published/edited article, login session and public pages. D1 now journals media deletions in the same transaction as each SQLite image, replaying incomplete R2 deletes after an interrupted process.
 - **Cloudflare R2 wp-content** stores WordPress uploads under `wp-content/uploads/`; read-only theme/plugin static assets can be supplied from R2 with bundled files as fallback. PHP theme/plugin code remains immutable and is never executed from R2.
 - Reproducible WordPress and SQLite source downloads, pinned SHA256 checks, lazy ZIP-mounted PHP and theme/block metadata, and separate edge static assets.
-- 144 unit tests plus the full WordPress local workerd E2E script. Tests and Worker bundle builds run in GitHub Actions.
+- Automated unit/TypeScript suites and full WordPress local workerd E2E scripts. Tests and Worker bundle builds run in GitHub Actions.
 - Fail-closed security controls: no public native WP routes, blocked config/secret paths, media file signature checks, request limits, disabled WP core/plugin auto-edit, and disabled dynamic page cache.
 
 ## Run locally
@@ -103,7 +112,7 @@ The CPU/DB critical-path implementation is recorded in [the detailed Stage-3 out
 - A new **opt-in, read-only** PHP `db.php` query-transport proof demonstrates a guarded `SELECT` subset via PHP→JavaScript. It is **not** installed in WordPress and does **not** support production `wpdb` methods or transactional SQL.
 - A new **offline** WordPress SQLite-to-query-native-D1 migration planner preserves full SQL schema/index/sequence fidelity in a local roundtrip (real E2E snapshot: 21 tables / 29 indexes). It is intentionally marked `productionReady:false`, `remoteExecutionAllowed:false` and does not run on remote D1.
 - The PHP bootstrap profiler now launches Wrangler with **Node.js** instead of Bun/Miniflare. First local Workerd installer HTTP 200: **3,215.701 ms wall**; repeated HTTP 200: **1,522.496 ms wall**. Neither is a Cloudflare CPU or memory measurement.
-- Independent Cloudflare CPU and native D1 `wpdb` readiness gates are required by the production preflight. The prior **real Cloudflare** WordPress installer probe was still `exceededCpu` (~2,010 ms CPU). Cloudflare Workers Free allows 10 ms per request; this architecture has not been shown to fit that budget.
+- Independent Cloudflare CPU and native D1 `wpdb` readiness gates are required by the production preflight. The prior **real Cloudflare** WordPress installer probe returned `exceededCpu` (~2,010 ms CPU) because it executed WordPress PHP in the **outer ingress Worker**, not inside the SQLite-backed Durable Object. The Free ingress Worker has a 10 ms CPU budget, while the separate SQLite DO defaults to 30 seconds per invocation. The actual Free DO CPU, peak 128 MB isolate memory and native D1 compatibility are **not verified**.
 
 **Production NO-GO persists.** No plan/billing or staging/public route change was made in Stage-3. The existing D1-backed SQLite snapshot adapter remains the active implementation.
 

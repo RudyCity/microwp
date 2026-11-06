@@ -12,7 +12,7 @@ function fixture(){
   async get(k){const value=r2.get(k);return value?{body:new ReadableStream({start(c){c.enqueue(value);c.close()}}),etag:"test",size:value.length}:null;},
   async put(k,body){r2.set(k,new Uint8Array(body as Uint8Array));written.push(k);},
   async list(){return {objects:[...r2].map(([k,v])=>({key:k,size:v.length})),truncated:false}},
-  async delete(k){deleted.push(k);r2.delete(k)}
+  async delete(keys){for(const key of (Array.isArray(keys)?keys:[keys])){deleted.push(key);r2.delete(key)}}
  }};
  const php={
   isDir:(p:string)=>p==="/www/wp-content/uploads"||p==="/www/wp-content/uploads/2026"||p==="/www/wp-content/uploads/2026/11",

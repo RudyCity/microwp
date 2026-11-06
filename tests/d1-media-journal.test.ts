@@ -37,7 +37,7 @@ function fixture(){
  const media:MediaR2={
   async get(){return null;},
   async put(){throw new Error("media test may not upload")},
-  async delete(key){if(failR2)throw new Error("injected R2 delete failure");deleted.push(key)}
+  async delete(keys){if(failR2)throw new Error("injected R2 delete failure");deleted.push(...(Array.isArray(keys)?keys:[keys]))}
  };
  return {sql,d1:d1 as unknown as D1SqlStore,media,deleted,failD1At:(i:number)=>failAt=i,failR2:(state:boolean)=>failR2=state};
 }

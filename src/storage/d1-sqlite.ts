@@ -13,6 +13,10 @@ import type {MediaR2} from "../types";
 export type D1SqlStore = Pick<D1Database,"prepare"|"batch">;
 export const DEFAULT_SITE_ID="microwp:single-site:v1";
 const MAX_PARTS=Math.ceil(MAX_SQLITE_BYTES/SQLITE_CHUNK_BYTES);
+/** The Free plan permits 50 D1 queries per Worker invocation. */
+export const D1_FREE_QUERY_LIMIT=50;
+/** D1 also limits bound parameters per individual SQL statement to 100. */
+export const D1_MAX_BINDS_PER_STATEMENT=100;
 interface ManifestRow {revision:string;bytes:number;sha256:string;parts:number}
 interface PartRow {part:number;payload:number[]|Uint8Array|ArrayBuffer}
 export interface D1SnapshotResult {changed:boolean;sha256:string}
@@ -75,7 +79,17 @@ export async function saveD1SQLite(db:D1SqlStore,sqlite:Uint8Array,siteId=DEFAUL
   if(prior)commands.push(db.prepare("DELETE FROM microwp_db_chunks WHERE site_id=? AND revision=?").bind(site,prior.revision));
  }
  // Journal entries and the SQLite manifest are committed in the SAME D1 transaction.
- for(const key of deletes)commands.push(db.prepare("INSERT OR IGNORE INTO microwp_media_delete_journal(site_id,object_key) VALUES(?,?)").bind(site,key));
+ // A large site may have 32 snapshot chunks and 32 deferred media deletes.
+ // One query per deletion would exceed Free's 50-query invocation limit.
+ // Use ONE bounded multi-row INSERT (<= 64 bind parameters, below D1's 100).
+ if(deletes.length){
+  const placeholders=deletes.map(()=>"(?,?)").join(",");
+  const bindings=deletes.flatMap(key=>[site,key]);
+  if(bindings.length>D1_MAX_BINDS_PER_STATEMENT)throw new Error("D1 media journal binding limit exceeded");
+  commands.push(db.prepare("INSERT OR IGNORE INTO microwp_media_delete_journal(site_id,object_key) VALUES "+placeholders).bind(...bindings));
+ }
+ // Include the preceding manifest SELECT in the conservative Free query budget.
+ if(commands.length+1>D1_FREE_QUERY_LIMIT)throw new Error("D1 Free query budget exceeded");
  // Cloudflare D1's batch API executes the series as one SQLite transaction.
  // On partial or failed writes, old manifest+chunks must remain intact.
  await db.batch(commands);
@@ -112,11 +126,19 @@ export async function drainD1MediaDeleteJournal(db:D1SqlStore,media:MediaR2|unde
  const pending=await readD1MediaDeleteJournal(db,site);
  if(pending.length===0)return 0;
  if(!media?.delete)throw new Error("R2 deletion binding required to replay D1 journal");
- for(const key of pending){
-  await media.delete(key);
-  // Older alpha media objects were written without the wp-content/ prefix.
-  await media.delete(key.slice(R2_UPLOADS_PREFIX.length));
-  await db.prepare("DELETE FROM microwp_media_delete_journal WHERE site_id=? AND object_key=?").bind(site,key).run();
- }
+ // R2 supports up to 1,000 keys per delete invocation. Batch all canonical
+ // keys together, and all legacy alpha aliases together. Two R2 subrequests
+ // replace up to 64 individual calls, preserving Workers Free subrequest headroom.
+ await media.delete(pending);
+ await media.delete(pending.map(key=>key.slice(R2_UPLOADS_PREFIX.length)));
+ // Acknowledge only after BOTH bulk R2 deletions succeeded. A partial R2 outage
+ // leaves the full durable journal intact; repeated deletes are idempotent.
+ // One bounded prepared DELETE avoids 32 separate D1 requests on Free.
+ const placeholders=pending.map(()=>"?").join(",");
+ const result=await db.prepare(
+  "DELETE FROM microwp_media_delete_journal WHERE site_id=? AND object_key IN ("+placeholders+")"
+ ).bind(site,...pending).run();
+ if((result as {success?:boolean}).success===false)
+  throw new Error("D1 media journal acknowledgement failed");
  return pending.length;
 }

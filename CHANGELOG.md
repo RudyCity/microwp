@@ -2,6 +2,12 @@
 
 All notable user-visible changes to microWP are documented here.
 
+## Unreleased — Cloudflare Free D1/R2 write budgets and missing-manifest recovery (2026-11-06)
+
+- Add a durable, independent WordPress provisioned-site marker in the SQLite-backed Durable Object. Refuse HTTP requests with 503 if the D1 snapshot manifest disappears after installation; never silently create a new WordPress database. Verify a real WordPress install/post/edit and local-only manifest-loss restart E2E.
+- Coalesce up to 32 media-delete journal writes into one bound SQL multi-row insert and acknowledge completed journal entries in one bound D1 deletion after R2 succeeds. Replace 64 individual canonical/legacy R2 deletes with **two bulk R2 calls**; preserve retry behavior on partial R2 failure.
+- Verify maximum-size 8 MiB SQLite snapshot plus 32 media removals within a tested path budget of 37 D1 queries plus two R2 operations; strengthen explicit production preflight for remote Free D1/R2 quotas. No remote D1/R2 writes, billing changes or public WordPress deployment; production remains NO-GO.
+
 ## Unreleased — Transactional private D1 autoload options batch (2026-11-06)
 
 - Add a private, non-installed WordPress 7.1.4 autoload read prototype that executes 11 prepared, site-scoped SELECT queries inside **one D1 `batch()` SQL transaction** rather than two independently dispatched verification passes.

@@ -11,6 +11,7 @@ import {mayServePreview} from "./php/config";
 import {isAuthorizedProbe,PROBE_PATH} from "./staging-probe";
 import {runNativeStagingProbe,runNativeD1SqlBridgeProbe} from "./php/native";
 import {invalidatePublicCacheAfterCommit} from "./php/worker-cache-invalidation";
+import {verifyExpectedD1Snapshot,armD1SnapshotRecovery} from "./storage/d1-absence-guard";
 interface DurableEnv extends Env {SITE_DO:DurableObjectNamespace<MicroWPSite>}
 function isLocal(host:string):boolean {return host==="localhost" || host==="127.0.0.1";}
 
@@ -18,6 +19,7 @@ export class MicroWPSite extends DurableObject<DurableEnv> {
   private firstLoad:Promise<void>|undefined;
   private queue:Promise<unknown>=Promise.resolve();
   private failed=false;
+  private d1RecoveryMarkerArmed=false;
   private runtimeEnv:DurableEnv | undefined;
   private async initPersistence(origin:string):Promise<void> {
     if (!this.firstLoad) this.firstLoad=(async()=>{
@@ -40,6 +42,13 @@ export class MicroWPSite extends DurableObject<DurableEnv> {
       if(mode==="d1"){
         if(!this.env.DB)throw new Error("D1 binding required in D1 storage mode");
         const d1Snapshot=await loadD1SQLite(this.env.DB);
+        this.d1RecoveryMarkerArmed=await verifyExpectedD1Snapshot(this.ctx.storage,d1Snapshot);
+        // On upgrade, guard legacy sites that already have D1 data before any
+        // PHP execution. A vanished D1 manifest must never trigger fresh install.
+        if(d1Snapshot&&!this.d1RecoveryMarkerArmed){
+          await armD1SnapshotRecovery(this.ctx.storage);
+          this.d1RecoveryMarkerArmed=true;
+        }
         const legacySnapshot=await loadSQLiteSnapshot(legacyStore);
         // Never silently initialize a fresh DB when an old DO snapshot exists.
         if(legacySnapshot&&!d1Snapshot)throw new Error("Legacy DO snapshot requires explicit verified D1 migration");
@@ -72,7 +81,15 @@ export class MicroWPSite extends DurableObject<DurableEnv> {
           if(!this.env.DB)throw new Error("D1 binding required in D1 storage mode");
           const pending=pendingNativeMediaDeletePaths();
           if(!snapshot&&pending.length)throw new Error("Cannot commit media deletion without a database snapshot");
-          if(snapshot)await saveD1SQLite(this.env.DB,snapshot,undefined,pending);
+          if(snapshot){
+            // The independent DO recovery marker MUST precede the first D1
+            // commit. A crash may require operator repair, never silent reset.
+            if(!this.d1RecoveryMarkerArmed){
+              await armD1SnapshotRecovery(this.ctx.storage);
+              this.d1RecoveryMarkerArmed=true;
+            }
+            await saveD1SQLite(this.env.DB,snapshot,undefined,pending);
+          }
           // D1 snapshot + journal have committed atomically. Skip the extra
           // D1 journal read on ordinary GETs or writes with no media deletion.
           // Any unfinished journal is always replayed at cold initialization.

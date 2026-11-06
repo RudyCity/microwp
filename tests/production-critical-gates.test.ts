@@ -8,6 +8,7 @@ describe("microWP critical production attestation gates",()=>{
    expect(script).toContain('flag("MICROWP_WORDPRESS_CPU_VERIFIED")');
    expect(script).toContain('flag("MICROWP_NATIVE_D1_WPDB_VERIFIED")');
    expect(script).toContain('flag("MICROWP_LIMITS_VERIFIED")');
+   expect(script).toContain('flag("MICROWP_FREE_STORAGE_QUOTAS_VERIFIED")');
    expect(script).toContain('if(blocked.length)process.exitCode=1');
  });
  test("operator cannot substitute local tests for missing WordPress CPU/D1 production evidence",()=>{
@@ -20,7 +21,7 @@ describe("microWP critical production attestation gates",()=>{
    });
    const out=new TextDecoder().decode(result.stdout);
    expect(result.exitCode).not.toBe(0);
-   expect(out).toContain("BLOCK Real WordPress bootstrap meets configured Cloudflare CPU budget");
+   expect(out).toContain("BLOCK Real WordPress bootstrap meets Cloudflare Free CPU limits");
    expect(out).toContain("BLOCK WordPress query-level D1 wpdb conformance and migration");
  });
 });
