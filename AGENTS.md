@@ -1,7 +1,7 @@
 # microWP contributor instructions
 
 Workspace: G:\project\microWP. Never create a new worktree or branch without permission.
-Status: public open-source experimental alpha v0.2.0-alpha.4; staging locked; NOT production-ready.
+Status: public open-source experimental alpha v0.2.0-alpha.5; staging locked; NOT production-ready.
 
 - Pinned official WordPress 7.1.4 and SQLite Integration 3.1.3 are sha256 verified; do not replace with latest without a separate audit.
 - WordPress PHP runs in PHP 8.4.27 WASM via a lazy ZIP-mounted MEMFS. Never expose PHP sources or wp-config through static assets.
@@ -135,3 +135,10 @@ Status: public open-source experimental alpha v0.2.0-alpha.4; staging locked; NO
 - The operator-normalized telemetry is **not authenticated** by the script: even when all reported CPU/memory values are within the nominal Free budgets, the result is diagnostics only and **never** authorizes production or public WordPress routes.
 - Missing DO/ingress records, duplicates, unexpected probe modes, absent cpuTime, overbudget CPU, absent/excess memory, failed outcomes and mismatched HTTP status must not be interpreted as successful measurements. Never use client wall time as CPU.
 - Independent Cloudflare platform invocations and deployment identity, trusted source provenance, operator-installed canary secret and actual Free-account eligibility still need verification. Do not use Paid-only Tail Workers or enable paid services. Source, tests and docs in English.
+
+## Composable private D1 options store (2026-11-06)
+
+- `src/php/d1-wpdb-conformance/options-store.ts` combines the private GET, canonical autoload SELECT, bounded UPSERT and duplicate-safe DELETE behind three independent host-owned capability objects. It snapshots the server-owned site and table configuration, and never accepts caller-supplied SQL or site IDs. The backend still uses the pinned SQLite snapshot for real WordPress; do not install this module as `wpdb`.
+- Its 50-D1-query limit is deliberately **per store instance**, not complete Worker invocation accounting: GET/ALL/PUT cost one query, DELETE costs two; all attempted D1 work is budgeted before executing, and unsupported/oversized/duplicate operations fail closed.
+- `bun run d1:option-mutation-e2e` now additionally exercises the composable store against a real *local* Workerd D1 binding: site isolation, fresh GET/ALL after PUT, 50-query guard, restart persistence and DELETE. This is not remote Cloudflare Free CPU/memory proof and does not permit production deployment.
+- Run `bun test tests/d1-wpdb-option-store.test.ts` and the full test/build/WordPress E2E gates before committing. Full `wpdb` core/plugin parity, migration/rollback, Cloudflare CPU and memory remain NO-GO prerequisites. Keep all code and documentation in English, using the existing shared checkout and main branch.

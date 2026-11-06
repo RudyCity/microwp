@@ -28,6 +28,26 @@ if(stage==="before-restart"){
   if(wrong.status!==200||wrong.raw.capabilityRejected!==true)throw Error("Crossed capability allowed");
   if(JSON.stringify(await rows())!==JSON.stringify([b]))throw Error("Crossed capability mutated D1");
   console.log("PASS wrong operation capability rejected without modifying D1");
+  const invalidStore=await request("/__local/store-wrong-capability");
+  if(invalidStore.status!==200||invalidStore.raw.rejected!==true||invalidStore.raw.used!==0)
+    throw Error("Private read capability incorrectly permitted D1 preparation");
+  const first=await request("/__local/store-read");
+  if(first.status!==200||first.raw.option===null||
+     (first.raw.option as Record<string,unknown>).found!==false||
+     !Array.isArray(first.raw.autoloadKeys)||
+     first.raw.autoloadKeys.length!==0||first.raw.queries!==2)
+    throw Error("Private options store leaked another site's option");
+  const budget=await request("/__local/store-budget");
+  if(budget.status!==200||budget.raw.used!==50||budget.raw.remaining!==0||
+     budget.raw.rejectedTwoQuery!==true||budget.raw.rejectedExtra!==true)
+    throw Error("Free D1 50-query store guard was not exercised");
+  console.log("PASS fixed-site store blocks unauthorized reads and query #51");
+  const storeWrite=await request("/__local/store-put");
+  if(storeWrite.status!==200||storeWrite.raw.queries!==3||
+     storeWrite.raw.autoloadValue!=="site_a_store"||
+     (storeWrite.raw.option as Record<string,unknown>)?.value!=="site_a_store")
+    throw Error("Private store put/get/all option consistency failed");
+  console.log("PASS composable native D1 store PUT/GET/autoload is consistent");
   const inserted=await request("/__local/put");
   if(inserted.status!==200||inserted.raw.changed!==1||inserted.raw.queryCount!==1)
     throw Error("Scoped one-query UPSERT failed");
@@ -47,9 +67,19 @@ if(stage==="before-restart"){
   if(JSON.stringify(await rows())!==JSON.stringify(expected))
     throw Error("Committed option not durable across Workerd restart");
   console.log("PASS native D1 option survives local Workerd restart");
-  const deleted=await request("/__local/delete");
-  if(deleted.status!==200||deleted.raw.changed!==1||deleted.raw.queryCount!==2)
-    throw Error("Scoped two-query DELETE failed");
+  const afterRestart=await request("/__local/store-read");
+  if(afterRestart.status!==200||
+     (afterRestart.raw.option as Record<string,unknown>)?.value!=="site_a_updated"||
+     afterRestart.raw.autoloadValue!=="site_a_updated"||
+     JSON.stringify(afterRestart.raw.autoloadKeys)!==JSON.stringify(["shared"]))
+    throw Error("Composable D1 store did not read committed revision after restart");
+  console.log("PASS native options store reads committed state after Workerd restart");
+  const deleted=await request("/__local/store-delete");
+  if(deleted.status!==200||
+     (deleted.raw.changed as Record<string,unknown>)?.changed!==1||
+     (deleted.raw.after as Record<string,unknown>)?.found!==false||
+     deleted.raw.queries!==3)
+    throw Error("Scoped store DELETE/get consistency failed");
   const again=await request("/__local/delete");
   if(again.status!==200||again.raw.changed!==0)throw Error("Absent delete should be no-op");
   if(JSON.stringify(await rows())!==JSON.stringify([b]))

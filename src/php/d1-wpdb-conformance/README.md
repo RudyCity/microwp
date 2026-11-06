@@ -52,3 +52,9 @@ Run bun run d1:single-e2e for an isolated local Workerd D1 proof or bun test tes
 Run bun run d1:option-mutation-e2e for a local-only **real Cloudflare Workerd D1 binding** INSERT/UPDATE/DELETE/restart/isolation check. Test source lives in src/probes/d1-option-mutation-local.ts with its isolated D1 UUID, no public route and no authorized remote deployment. Unit checks: bun test tests/d1-wpdb-options-mutation.test.ts tests/d1-wpdb-option-mutation-config.test.ts. See [option mutation evidence](../../../docs/reports/2026-11-06-microwp-d1-option-mutation-proof.md).
 
 **Production remains NO-GO.** This helper is not connected to live wpdb or WordPress admin, and local D1 success is not a Cloudflare Free CPU/memory benchmark.
+
+## Composable private D1 options store (experimental)
+
+[`options-store.ts`](./options-store.ts) composes trusted GET, fixed WordPress autoload SELECT, PUT and guarded DELETE into a single non-installed host-owned API. Three distinct opaque capabilities control read, put and delete; site/table identity is copied at creation and never supplied through WordPress PHP or HTTP. All SQL remains prepared, responses are strictly validated, and the store refuses more than 50 D1 queries per instance (GET/ALL/PUT = 1; DELETE = 2), including failed attempted D1 calls. **Other D1 calls in the same Worker invocation are not counted**; this local cap does not prove Free daily or per-invocation resource fitness.
+
+Run `bun test tests/d1-wpdb-option-store.test.ts` and `bun run d1:option-mutation-e2e` to verify the real localhost Workerd D1 binding, fresh read-after-write, site isolation, 50-query guard, restart and deletion. See [composable store evidence](../../../docs/reports/2026-11-06-microwp-d1-composable-options-store.md). This site-scoped fixture is not the real WordPress core schema, and the module is **not connected to WordPress's wpdb adapter**. Production remains NO-GO.
