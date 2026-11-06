@@ -76,6 +76,52 @@ async function execute(request: D1ProtocolRequest, db: D1ProtocolDb, policy: D1P
     return { version: 1, id: request.id, ok: true, op: "select", rows: result.results };
   }
 
+  if (request.op === "update" || request.op === "delete") {
+    // Mutation policy must refer to a schema-verified UNIQUE/PRIMARY KEY.
+    // Never authorize a bulk update/delete on scope alone or an arbitrary
+    // non-unique predicate. PHP cannot select or overwrite the site scope.
+    const identity=permission.identityColumn;
+    if (!permission.scope || !identity || !validIdentifier(identity) ||
+        !permission.filter?.includes(identity) ||
+        !request.where.some(x=>x.column===identity && x.value!==null)) deny();
+    const where: string[]=[];
+    const predicates: SqlValue[]=[];
+    for(const p of request.where){
+      allowed(p.column,permission.filter);
+      if(p.column===permission.scope.column)deny();
+      if(p.value===null)where.push(quote(p.column)+" IS NULL");
+      else {where.push(quote(p.column)+" = ?");predicates.push(p.value)}
+    }
+    where.push(quote(permission.scope.column)+" = ?");
+    predicates.push(permission.scope.value);
+    let sql:string;
+    let bindings:SqlValue[];
+    if(request.op==="update"){
+      const names=Object.keys(request.values);
+      if(!permission.update?.length)deny();
+      for(const name of names){
+        allowed(name,permission.update);
+        if(name===identity || name===permission.scope.column)deny();
+      }
+      bindings=[...names.map(n=>request.values[n]),...predicates];
+      sql="UPDATE "+quote(request.table)+" SET "+names.map(n=>quote(n)+" = ?").join(", ")+
+        " WHERE "+where.join(" AND ");
+    } else {
+      if(permission.delete!==true)deny();
+      bindings=predicates;
+      sql="DELETE FROM "+quote(request.table)+" WHERE "+where.join(" AND ");
+    }
+    ensureBindings(bindings);
+    const result=await db.prepare(sql).bind(...bindings).run();
+    if(!result.success)throw new D1ProtocolError("EXECUTION_FAILED");
+    const changes=result.meta?.changes;
+    // A verified unique key should never affect >1 row. The error is a
+    // diagnostic, not a rollback; integrations must verify unique constraints.
+    if(!Number.isSafeInteger(changes)||changes<0||changes>1)
+      throw new D1ProtocolError("EXECUTION_FAILED");
+    return {version:1,id:request.id,ok:true,op:request.op,changes};
+  }
+
   const names = Object.keys(request.values);
   for (const name of names) allowed(name, permission.insert);
   const values: SqlValue[] = names.map((name) => request.values[name]);
@@ -100,12 +146,18 @@ async function execute(request: D1ProtocolRequest, db: D1ProtocolDb, policy: D1P
  * Errors intentionally omit SQL, arguments, schema, and D1 exception strings.
  */
 export async function handleD1ProtocolMessage(
-  message: string, db: D1ProtocolDb, policy: D1ProtocolPolicy
+  message: string, db: D1ProtocolDb, policy: D1ProtocolPolicy,
+  authorizedDestructiveOp?: "update" | "delete"
 ): Promise<string> {
   let id = "";
   try {
     const request = decodeD1Request(message);
     id = request.id;
+    // Defense in depth: even direct internal users of this handler cannot
+    // execute UPDATE/DELETE merely by presenting a permissive table policy.
+    // The runtime adapter must first verify its separate opaque write key.
+    if ((request.op === "update" || request.op === "delete") &&
+      authorizedDestructiveOp !== request.op) throw new D1ProtocolError("NOT_ALLOWED");
     return response(await execute(request, db, policy));
   } catch (error) {
     const code = error instanceof D1ProtocolError ? error.code : "EXECUTION_FAILED";

@@ -37,3 +37,7 @@ The precise CPU and wall values are **observations from individual remote invoca
 5. Keep the public staging lock and production preflight NO-GO until all gates are objectively satisfied.
 
 Related: `docs/OPERATIONS.md` and GitHub Issues #1 and #2.
+
+## 2026-11-06 clarification: ingress CPU is not SQLite Durable Object CPU
+
+The historical `wordpress` private staging scope in `src/index-durable.ts` called `runNativeStagingProbe(env,scope)` directly in the top-level **ingress Worker** (before invoking the site Durable Object). The measured 2,010 ms `exceededCpu` outcome is genuine and remains recorded above, but it does **not** measure the Free **SQLite-backed Durable Object** CPU budget. Official Cloudflare documentation currently lists 10 ms CPU for ordinary Free Worker requests and a separate 30-second default CPU allowance for SQLite-backed Durable Object invocations. The separate `MicroWPFreeCpuDO` canary in `src/probes/free-do-cpu.ts` executes the actual WordPress PHP probe inside a DO but has **not** been verified remotely in this update. Peak memory (128 MiB/isolate) is still unknown. See [2026-11-06 execution scope audit](2026-11-06-microwp-free-cpu-scope-audit.md). No statement above should be interpreted as proof that real WordPress PHP-WASM on a Free SQLite DO is impossible or production-ready.

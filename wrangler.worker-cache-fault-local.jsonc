@@ -1,0 +1,8 @@
+{
+ "$schema":"./node_modules/wrangler/config-schema.json",
+ "name":"microwp-cache-resilience-local-only",
+ "main":"src/probes/wp-cache-rpc-failure-local.ts",
+ "compatibility_date":"2026-11-04",
+ "workers_dev":false,
+ "observability":{"enabled":false}
+}

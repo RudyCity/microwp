@@ -35,7 +35,10 @@
     "wp-object-cache:build": "bun run wasm:prepare && wrangler deploy --config wrangler.wp-cache-local-proof.jsonc --dry-run --outdir dist-wp-cache-proof",
     "wp-object-cache:e2e": "bun scripts/wp-object-cache-local-e2e.ts",
     "wp-cache:editorial-build": "wrangler deploy --config wrangler.wp-cache-editorial-local.jsonc --dry-run --outdir dist-wp-cache-editorial",
-    "wp-cache:editorial-e2e": "bash scripts/wp-cache-editorial-e2e.sh"
+    "wp-cache:editorial-e2e": "bash scripts/wp-cache-editorial-e2e.sh",
+    "wp-cache:resilience-e2e": "bash scripts/wp-cache-resilience-local-e2e.sh",
+    "cpu:evidence-audit": "bun scripts/audit-cloudflare-free-cpu.ts",
+    "d1:mutation-prototype-test": "bun test tests/d1-protocol-mutation-capability.test.ts"
   },
   "dependencies": {
     "@php-wasm/universal": "3.1.62",

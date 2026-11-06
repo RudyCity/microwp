@@ -50,3 +50,5 @@ jobs:
         run: bun run wp-cache:editorial-build
       - name: WordPress editorial, Transients API and cache invalidation E2E
         run: bun run wp-cache:editorial-e2e
+      - name: WordPress cache Service Binding failure and recovery E2E
+        run: bun run wp-cache:resilience-e2e

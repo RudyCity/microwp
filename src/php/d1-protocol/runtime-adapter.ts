@@ -1,5 +1,5 @@
 import {
-  checkValue, MAX_COLUMNS, type D1ProtocolPolicy, type SqlValue,
+  checkValue, decodeD1Request, MAX_COLUMNS, type D1ProtocolPolicy, type SqlValue,
   validIdentifier
 } from "./protocol";
 import { handleD1ProtocolMessage, type D1ProtocolDb } from "./worker";
@@ -15,10 +15,12 @@ export interface D1RuntimeAdapterOptions {
   readonly policy: D1ProtocolPolicy;
   /** Server-created object identity, never exposed to PHP or HTTP clients. */
   readonly callerKey: object;
+  /** Separate opaque host-only object identity for each permitted write op. */
+  readonly writeCapabilities?: Readonly<{insert?:object;update?:object;delete?:object}>;
 }
 export interface D1RuntimeAdapter {
   /** Only call from a trusted host callback holding callerKey. */
-  dispatch(message: unknown, callerKey: unknown): Promise<string>;
+  dispatch(message: unknown, callerKey: unknown, writeCapability?: unknown): Promise<string>;
 }
 
 const denial = (error: "NOT_ALLOWED" | "BAD_REQUEST" | "EXECUTION_FAILED"): string =>
@@ -54,14 +56,26 @@ function snapshotPolicy(policy: D1ProtocolPolicy): D1ProtocolPolicy {
     catch { throw new TypeError("Invalid D1 runtime scope"); }
     const select = copiedNames(rule.select);
     const insert = copiedNames(rule.insert);
+    const update = copiedNames(rule.update);
     const filter = copiedNames(rule.filter);
     const order = copiedNames(rule.order);
-    if ((!select?.length && !insert?.length) ||
-        [select, insert, filter, order].some((names) => names?.includes(scope.column))) {
+    const deleteAllowed=rule.delete===true;
+    const identityColumn=rule.identityColumn;
+    if (rule.delete!==undefined && typeof rule.delete!=="boolean")
+      throw new TypeError("Invalid D1 delete policy");
+    if(identityColumn!==undefined && !validIdentifier(identityColumn))
+      throw new TypeError("Invalid D1 identity column");
+    if((update?.length||deleteAllowed)&&
+       (!identityColumn||!filter?.includes(identityColumn)||identityColumn===scope.column))
+      throw new TypeError("D1 write policy requires a schema-verified scoped unique identity column");
+    if ((!select?.length && !insert?.length && !update?.length && !deleteAllowed) ||
+        [select, insert, update, filter, order].some((names) => names?.includes(scope.column)) ||
+        update?.includes(identityColumn??"")) {
       throw new TypeError("Invalid D1 runtime policy");
     }
     tables[table] = Object.freeze({
-      select, insert, filter, order, scope: Object.freeze({ column: scope.column, value })
+      select, insert, update, delete:deleteAllowed, identityColumn,
+      filter, order, scope: Object.freeze({ column: scope.column, value })
     });
   }
   return Object.freeze({ tables: Object.freeze(tables) });
@@ -74,13 +88,27 @@ export function createD1RuntimeAdapter(options: D1RuntimeAdapterOptions): D1Runt
   }
   const { db, callerKey } = options;
   const policy = snapshotPolicy(options.policy);
+  // Snapshot object identity, never the caller's mutable capability container.
+  const grants={
+    insert:options.writeCapabilities?.insert,
+    update:options.writeCapabilities?.update,
+    delete:options.writeCapabilities?.delete
+  };
+  const granted=Object.values(grants).filter((key)=>key!==undefined);
+  if(granted.some(key=>typeof key!=="object"||key===null||key===callerKey)||
+     new Set(granted).size!==granted.length)
+    throw new TypeError("Invalid independent D1 write capabilities");
   return Object.freeze({
-    async dispatch(message: unknown, suppliedKey: unknown): Promise<string> {
+    async dispatch(message: unknown, suppliedKey: unknown, suppliedWriteCapability?: unknown): Promise<string> {
       // Check origin first: even malformed, oversized untrusted inputs never touch D1.
       if (suppliedKey !== callerKey) return denial("NOT_ALLOWED");
       if (typeof message !== "string") return denial("BAD_REQUEST");
       try {
-        return await handleD1ProtocolMessage(message, db, policy);
+        const request=decodeD1Request(message);
+        if(request.op!=="select" && (!grants[request.op]||
+          suppliedWriteCapability!==grants[request.op]))return denial("NOT_ALLOWED");
+        return await handleD1ProtocolMessage(message, db, policy,
+          request.op==="update"||request.op==="delete"?request.op:undefined);
       } catch {
         // The underlying handler already sanitizes D1 failures; keep this
         // defense for unexpected integration-level exceptions.

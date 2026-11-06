@@ -1,6 +1,6 @@
 /**
  * Versioned private PHP-WASM <-> Worker D1 wire format.
- * Deliberately accepts structured SELECT/INSERT requests, never SQL text.
+ * Deliberately accepts bounded structured operations, never arbitrary SQL text.
  * No handler is attached to a Fetch route by this module.
  */
 export const D1_PROTOCOL_VERSION = 1 as const;
@@ -26,6 +26,12 @@ export interface TablePolicy {
   readonly select?: readonly string[];
   /** Writable columns; an empty/absent list disables INSERT. */
   readonly insert?: readonly string[];
+  /** Fields allowed in explicit single-row UPDATE (disabled by default). */
+  readonly update?: readonly string[];
+  /** Explicitly permit scoped single-row DELETE (disabled by default). */
+  readonly delete?: boolean;
+  /** Trusted unique primary key; UPDATE/DELETE require equality on this column. */
+  readonly identityColumn?: string;
   /** Columns allowed in equality predicates. */
   readonly filter?: readonly string[];
   /** Columns allowed in ORDER BY. */
@@ -58,7 +64,22 @@ export interface InsertRequest {
   table: string;
   values: Record<string, SqlValue>;
 }
-export type D1ProtocolRequest = SelectRequest | InsertRequest;
+export interface UpdateRequest {
+  version: 1;
+  id: string;
+  op: "update";
+  table: string;
+  values: Record<string, SqlValue>;
+  where: Equality[];
+}
+export interface DeleteRequest {
+  version: 1;
+  id: string;
+  op: "delete";
+  table: string;
+  where: Equality[];
+}
+export type D1ProtocolRequest = SelectRequest | InsertRequest | UpdateRequest | DeleteRequest;
 
 export class D1ProtocolError extends Error {
   constructor(readonly code: D1ErrorCode) {
@@ -153,6 +174,26 @@ export function decodeD1Request(message: string): D1ProtocolRequest {
     const values: Record<string, SqlValue> = Object.create(null);
     for (const name of names) values[identifier(name)] = checkValue(payload.values[name]);
     return { version: 1, id: payload.id, op: "insert", table, values };
+  }
+  if (payload.op === "update" || payload.op === "delete") {
+    const op = payload.op;
+    if (op === "update") {
+      keys(payload,["version","id","op","table","values","where"],
+        ["version","id","op","table","values","where"]);
+    } else {
+      keys(payload,["version","id","op","table","where"],
+        ["version","id","op","table","where"]);
+    }
+    const table = identifier(payload.table);
+    const where = predicates(payload.where);
+    if (where.length < 1) throw new D1ProtocolError("BAD_REQUEST");
+    if (op === "delete") return {version:1,id:payload.id,op,table,where};
+    if (!record(payload.values)) throw new D1ProtocolError("BAD_REQUEST");
+    const names=Object.keys(payload.values);
+    if (names.length<1 || names.length>MAX_COLUMNS) throw new D1ProtocolError("BAD_REQUEST");
+    const values:Record<string,SqlValue>=Object.create(null);
+    for(const name of names) values[identifier(name)]=checkValue(payload.values[name]);
+    return {version:1,id:payload.id,op,table,values,where};
   }
   throw new D1ProtocolError("BAD_REQUEST");
 }

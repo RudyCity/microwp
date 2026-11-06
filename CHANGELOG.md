@@ -2,6 +2,13 @@
 
 All notable user-visible changes to microWP are documented here.
 
+## Unreleased — Private cache failover, bounded D1 mutations and Free CPU audit (2026-11-06)
+
+- Add local-only real WordPress PHP-WASM E2E that injects cache Service Binding exceptions, verifies authoritative D1 writes survive, then restarts against a recovered Worker cache and proves hit/invalidation and WordPress transients again. No deployed cache Worker was mutated.
+- Extend the experimental **non-installed** D1 structured query adapter with scoped, bounded UPDATE/DELETE requiring a trusted schema unique identity predicate, independent per-operation opaque capabilities, prepared statements, and a separate destructive-operation gate. New Bun+SQLite tests cover cross-site data, malformed operations and SQL injection.
+- Correct CPU attribution: the historical ~2s `exceededCpu` private staging probe ran WordPress in the ingress Worker, while SQLite-backed Durable Objects have a separately documented default 30-second request CPU allowance on Free. Add bounded operator-supplied remote CPU evidence analysis; do not claim production-ready from wall time or local Workerd.
+- Keep WordPress staging disabled, code/docs English, no paid services, no public routes and no remote D1/R2 changes. Production remains NO-GO pending real DO CPU/memory, full WordPress native D1 and plugin integration gates.
+
 ## Unreleased — Hybrid WordPress object cache and Transients API parity (2026-11-06)
 
 - Preserve native WordPress database-backed ordinary/site transient semantics while `microwp_public` remains persisted only in the private Worker cache.

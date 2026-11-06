@@ -120,6 +120,16 @@ A dedicated **Cloudflare Worker + one Durable Object per site** now implements t
 
 This is **not** a full Redis engine, Redis TCP/RESP protocol or a drop-in replacement for the WordPress Redis Object Cache plugin. A PHP-WASM object-cache bridge and correct WordPress invalidation still need separate validation before enabling the cache for live WordPress. This does not itself solve WordPress `exceededCpu`. Details: [Worker-only Redis-like cache design and safety](docs/reports/2026-11-06-microwp-worker-only-redis-cache.md).
 
+## Development update: Free Durable Object CPU scope, resilient cache and bounded D1 mutations
+
+Three separate non-production gates have advanced:
+
+- **CPU scope:** Cloudflare's default per-request CPU budget is **10 ms for a Free ingress Worker** but **30 seconds for a SQLite-backed Durable Object**, with **128 MiB memory per isolate**. The earlier 2,010 ms `exceededCpu` private canary ran `runNativeStagingProbe()` in the **ingress Worker**, not the DO. It does not establish that WordPress exceeds the Free SQLite DO budget. The separate authenticated DO canary still requires actual remote CPU/memory evidence. `bun run cpu:evidence-audit` accepts only bounded, operator-supplied evidence under ignored `.wrangler/`; never substitute local wall time for CPU.
+- **Cache resilience:** `bun run wp-cache:resilience-e2e` uses two **local-only** Worker cache implementations: one always throws on RPC; after real WordPress D1 writes are verified, it is replaced by the healthy internal cache Worker. The same isolated WordPress site recovers cache hit/invalidation while native transients remain database-backed. No real Cloudflare resources are touched.
+- **D1 experimental mutations:** private structured `UPDATE` and `DELETE` now enforce unique-key equality, immutable table/site policy and distinct opaque host write capabilities with bound D1 SQL arguments. This is **not installed** into WordPress `wpdb`; no live D1 WordPress query migration has occurred.
+
+See [Free CPU scope audit](docs/reports/2026-11-06-microwp-free-cpu-scope-audit.md), [WordPress cache failure/recovery](docs/reports/2026-11-06-microwp-worker-cache-failure-recovery.md), and [experimental D1 mutation security](docs/reports/2026-11-06-microwp-d1-experimental-mutation-safety.md). All features remain on Cloudflare Free; **production still NO-GO**.
+
 ## Hybrid WordPress object cache with native database-backed transients
 
 In opt-in mode, only immutable, revisioned `microwp_public` keys use the internal Worker cache. WordPress's ordinary `transient` and `site-transient` groups use the native database-backed options path. The pinned WordPress cache initializer sets `wp_using_ext_object_cache(false)` because this is not a universal persistent object cache. The only patched core source is mounted read-only into the isolated PHP-WASM filesystem; the original WordPress ZIP is never modified.
