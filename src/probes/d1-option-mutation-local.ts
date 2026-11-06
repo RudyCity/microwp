@@ -33,6 +33,23 @@ export default {
       if(url.pathname==="/__local/read"){
         return Response.json({ok:true,rows:await read(env.DB)},{headers:HEADERS});
       }
+      if(url.pathname==="/__local/store-batch-read"){
+        const store=createPrivateWordPressOptionStore(STORE_CONFIG,env.DB);
+        const result=await store.getMany(["shared","missing","__proto__"],readCap);
+        return Response.json({ok:true,values:result.values,requested:result.requested,
+          found:result.found,queries:store.usedQueries},{headers:HEADERS});
+      }
+      if(url.pathname==="/__local/store-batch-budget"){
+        const store=createPrivateWordPressOptionStore(STORE_CONFIG,env.DB);
+        const keys=Array.from({length:96},(_,i)=>"missing_"+String(i).padStart(3,"0"));
+        const result=await store.getMany(keys,readCap);
+        for(let i=0;i<49;i++)await store.getMany(["missing"],readCap);
+        const used=store.usedQueries;
+        let rejected=false;
+        try{await store.getMany(["missing"],readCap)}catch{rejected=true;}
+        return Response.json({ok:true,requested:result.requested,found:result.found,
+          used,rejected,remaining:store.remainingQueries},{headers:HEADERS});
+      }
       if(url.pathname==="/__local/store-read"){
         const store=createPrivateWordPressOptionStore(STORE_CONFIG,env.DB);
         const option=await store.get("shared",readCap);

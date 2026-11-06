@@ -31,6 +31,18 @@ if(stage==="before-restart"){
   const invalidStore=await request("/__local/store-wrong-capability");
   if(invalidStore.status!==200||invalidStore.raw.rejected!==true||invalidStore.raw.used!==0)
     throw Error("Private read capability incorrectly permitted D1 preparation");
+  const batch=await request("/__local/store-batch-read");
+  if(batch.status!==200||batch.raw.ok!==true||batch.raw.queries!==1||
+     batch.raw.requested!==3||batch.raw.found!==0||
+     JSON.stringify(batch.raw.values)!==
+       JSON.stringify({shared:null,missing:null,["__proto__"]:null}))
+    throw Error("Native D1 options batch leaked another site or used more than one query");
+  const batchBudget=await request("/__local/store-batch-budget");
+  if(batchBudget.status!==200||batchBudget.raw.used!==50||
+     batchBudget.raw.remaining!==0||batchBudget.raw.rejected!==true||
+     batchBudget.raw.requested!==96||batchBudget.raw.found!==0)
+    throw Error("Native D1 96-key bound and 50-query guard failed");
+  console.log("PASS native D1 batch reads 96 keys in one statement, with isolation and query guard");
   const first=await request("/__local/store-read");
   if(first.status!==200||first.raw.option===null||
      (first.raw.option as Record<string,unknown>).found!==false||
@@ -59,6 +71,12 @@ if(stage==="before-restart"){
   ];
   if(JSON.stringify(await rows())!==JSON.stringify(expected))
     throw Error("Site isolation or local UPSERT persistence failed");
+  const revisedBatch=await request("/__local/store-batch-read");
+  if(revisedBatch.status!==200||revisedBatch.raw.queries!==1||
+     revisedBatch.raw.found!==1||
+     (revisedBatch.raw.values as Record<string,unknown>)?.shared!=="site_a_updated")
+    throw Error("Native D1 batch read did not observe committed option revision");
+  console.log("PASS native batch read observes committed site A revision");
   console.log("PASS one-query INSERT and UPDATE isolated by trusted site identity");
 }else{
   const expected=[

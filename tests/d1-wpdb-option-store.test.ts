@@ -3,6 +3,7 @@ import {Database} from "bun:sqlite";
 import {readFileSync} from "node:fs";
 import {
   createPrivateWordPressOptionStore,OPTIONS_STORE_MAX_QUERIES,
+  MAX_BATCH_OPTION_KEYS,MAX_BATCH_OPTION_OUTPUT_BYTES,
   WORDPRESS_AUTOLOAD_QUERY,type PrivateOptionStoreConfig
 } from "../src/php/d1-wpdb-conformance/options-store";
 
@@ -116,6 +117,110 @@ describe("trusted composable site-scoped D1 WordPress options store",()=>{
     );
     expect(reader.usedQueries).toBe(1);
     g.sqlite.close();
+  });
+  test("getMany returns missing and present values across one prepared scoped D1 query",async()=>{
+    const f=fixture();
+    f.insert.run("site_a","alpha","value_a","yes");
+    f.insert.run("site_a","empty","","no");
+    f.insert.run("site_b","alpha","SECRET_B","yes");
+    const store=createPrivateWordPressOptionStore(config,f.db);
+    const batch=await store.getMany(["alpha","shared","empty","missing","__proto__"],readCap);
+    expect(batch.requested).toBe(5);
+    expect(batch.found).toBe(2);
+    expect(batch.queryCount).toBe(1);
+    expect(Object.getPrototypeOf(batch.values)).toBeNull();
+    expect(Object.isFrozen(batch.values)).toBe(true);
+    expect(Object.isFrozen(batch)).toBe(true);
+    expect({...batch.values}).toEqual(Object.fromEntries([
+      ["alpha","value_a"],["shared",null],["empty",""],
+      ["missing",null],["__proto__",null]
+    ]));
+    expect(Object.keys(batch.values)).toContain("__proto__");
+    expect(batch.values["__proto__"]).toBeNull();
+    expect(store.usedQueries).toBe(1);
+    expect(f.statements).toHaveLength(1);
+    expect(f.statements[0].args).toEqual([
+      191,2048,"site_a","alpha","shared","empty","missing","__proto__",6
+    ]);
+    expect(f.statements[0].sql).toContain('ORDER BY "option_name" COLLATE BINARY ASC LIMIT ?');
+    f.sqlite.close();
+  });
+  test("getMany accepts 96 names in exactly one D1 query with <=100 bindings",async()=>{
+    const f=fixture();
+    const keys=Array.from({length:MAX_BATCH_OPTION_KEYS},(_,i)=>"name_"+String(i).padStart(3,"0"));
+    keys.forEach((name,i)=>f.insert.run("site_a",name,"v"+i,"no"));
+    const store=createPrivateWordPressOptionStore(config,f.db);
+    const batch=await store.getMany(keys,readCap);
+    expect(batch.requested).toBe(96);
+    expect(batch.found).toBe(96);
+    expect(batch.values.name_000).toBe("v0");
+    expect(batch.values.name_095).toBe("v95");
+    expect(f.statements).toHaveLength(1);
+    expect(f.statements[0].args).toHaveLength(100);
+    expect(store.usedQueries).toBe(1);
+    f.sqlite.close();
+  });
+  test("getMany rejects forged rights, duplicate, missing, oversized and sparse names before preparing",async()=>{
+    const f=fixture(),store=createPrivateWordPressOptionStore(config,f.db);
+    for(const call of [
+      ()=>store.getMany(["x"],putCap),
+      ()=>store.getMany([],readCap),
+      ()=>store.getMany(["x","x"],readCap),
+      ()=>store.getMany(Array.from({length:97},(_,i)=>"key_"+i),readCap),
+      ()=>store.getMany(["é".repeat(100)],readCap),
+      ()=>store.getMany(["x\u0000y"],readCap),
+      ()=>store.getMany([null] as unknown as string[],readCap),
+      ()=>store.getMany(new Array(1) as string[],readCap),
+    ]) await expect(call()).rejects.toThrow("Private D1 WordPress option store rejected");
+    expect(store.usedQueries).toBe(0);
+    expect(f.statements).toHaveLength(0);
+    f.sqlite.close();
+  });
+  test("getMany rejects duplicates and oversized D1 values without returning a partial result",async()=>{
+    const f=fixture(false),store=createPrivateWordPressOptionStore(config,f.db);
+    f.insert.run("site_a","dup","first","yes");
+    f.insert.run("site_a","dup","second","yes");
+    await expect(store.getMany(["dup"],readCap)).rejects.toThrow();
+    f.sqlite.close();
+    const tooLarge=fixture(),reader=createPrivateWordPressOptionStore(config,tooLarge.db);
+    for(let i=0;i<40;i++){
+      tooLarge.insert.run("site_a","key_"+String(i).padStart(2,"0"),"x".repeat(2048),"yes");
+    }
+    expect(MAX_BATCH_OPTION_OUTPUT_BYTES).toBe(65536);
+    await expect(reader.getMany(Array.from({length:40},(_,i)=>
+      "key_"+String(i).padStart(2,"0")),readCap)).rejects.toThrow();
+    tooLarge.sqlite.close();
+    for(const results of [
+      [{option_name:"x",option_value:null}],
+      [{option_name:"x",option_value:1}],
+      [{option_name:"foreign",option_value:"private"}],
+      [{option_name:"x",option_value:"v",secret:"a"}],
+      [{option_name:"x",option_value:"v"},{option_name:"x",option_value:"v"}],
+      [{option_name:"z",option_value:"v"},{option_name:"x",option_value:"v"}]
+    ]){
+      const db={prepare:()=>({bind:()=>({all:async()=>({success:true,results})})}),
+        batch:async()=>[]} as unknown as D1Database;
+      await expect(createPrivateWordPressOptionStore(config,db)
+        .getMany(["x","z"],readCap)).rejects.toThrow(
+         "Private D1 WordPress option store rejected");
+    }
+  });
+  test("getMany sees every committed revision and consumes one store query even on failure",async()=>{
+    const f=fixture(),store=createPrivateWordPressOptionStore(config,f.db);
+    expect((await store.getMany(["x"],readCap)).values.x).toBeNull();
+    await store.put("x","one","on",putCap);
+    expect((await store.getMany(["x"],readCap)).values.x).toBe("one");
+    await store.put("x","two","no",putCap);
+    expect((await store.getMany(["x"],readCap)).values.x).toBe("two");
+    await store.delete("x",delCap);
+    expect((await store.getMany(["x"],readCap)).values.x).toBeNull();
+    expect(store.usedQueries).toBe(8);
+    f.sqlite.close();
+    const broken={prepare(){throw Error("secret backend")},batch(){throw Error("secret backend")}} as unknown as D1Database;
+    const bad=createPrivateWordPressOptionStore(config,broken);
+    await expect(bad.getMany(["x"],readCap)).rejects.toThrow(
+      "Private D1 WordPress option store rejected");
+    expect(bad.usedQueries).toBe(1);
   });
   test("scope and capability identities are frozen snapshots of original config",async()=>{
     const f=fixture();
