@@ -1,52 +1,86 @@
 import {join} from "node:path";
-/** Local only: two distinct Wrangler processes, real Service Binding RPC + DO. */
+/** Two isolated LOCAL Wrangler processes and a private RPC Service Binding.
+ * Local dev-session transport may drop while pairing Workers; retry at most
+ * three fresh pairs/ports. Never retry a semantic cache contract failure.
+ */
 const root=join(import.meta.dir,"..");
-function start(config:string,port:number){
+const runId=String(process.pid);
+function spawn(config:string,port:number,state:string){
  return Bun.spawn(["node","node_modules/wrangler/bin/wrangler.js","dev",
   "--config",config,"--local","--ip","127.0.0.1","--port",String(port),
-  "--persist-to",".wrangler/worker-cache-local-e2e",
-  "--show-interactive-dev-session=false"],{
+  "--persist-to",state,"--show-interactive-dev-session=false"],{
   cwd:root,stdout:"ignore",stderr:"ignore",stdin:"ignore"
  });
 }
-const cache=start("wrangler.worker-cache.jsonc",18951);
-let caller:ReturnType<typeof Bun.spawn>|undefined;
-async function check():Promise<boolean>{
- const response=await fetch("http://127.0.0.1:18952/__local/cache-smoke",{
-  method:"POST",signal:AbortSignal.timeout(3000)});
- if(response.status!==200){
-  const body=await response.text();
-  throw new Error("Service Binding check returned "+response.status+": "+body.slice(0,200));
- }
- const result=await response.json() as Record<string,unknown>;
+function errorMessage(error:unknown):string{
+ return error instanceof Error?error.message:"unknown";
+}
+async function proveCache(baseUrl:string):Promise<void>{
+ const response=await fetch(baseUrl+"/__local/cache-smoke",{
+  method:"POST",signal:AbortSignal.timeout(5000)});
+ const body=await response.text();
+ if(response.status===503&&
+  /Network connection lost|not found|not connected|cannot connect/i.test(body))
+   throw new Error("TRANSIENT_LOCAL_SERVICE_BINDING:"+body.slice(0,200));
+ if(response.status!==200)throw new Error("CONTRACT_FAILED_HTTP_"+response.status+":"+body.slice(0,200));
+ let result:Record<string,unknown>;
+ try{result=JSON.parse(body) as Record<string,unknown>}
+ catch{throw new Error("CONTRACT_FAILED_INVALID_JSON")}
  if(!result.ok||!result.serviceBinding||!result.separateSites||!result.addIsAtomic||
-  !result.incrementAtomic||!result.siteEmpty)throw new Error("Service binding proof incomplete");
- return true;
+  !result.incrementAtomic||!result.concurrentIncrAtomic||!result.siteEmpty)
+  throw new Error("CONTRACT_FAILED_INCOMPLETE_EVIDENCE");
 }
-try{
- const providerStart=Date.now();
- let providerReady=false;
- while(Date.now()-providerStart<35000){
-  try{
-   const response=await fetch("http://127.0.0.1:18951/",{signal:AbortSignal.timeout(1300)});
-   if(response.status===404){providerReady=true;break}
-  }catch{}
-  await Bun.sleep(300);
+async function pair(attempt:number):Promise<void>{
+ const providerPort=18951+attempt*10,callerPort=providerPort+1;
+ const state=".wrangler/worker-cache-local-e2e/"+runId+"-"+attempt;
+ const provider=spawn("wrangler.worker-cache.jsonc",providerPort,state);
+ let caller:ReturnType<typeof Bun.spawn>|undefined;
+ try{
+  const providerStart=Date.now();
+  let ready=false;
+  while(Date.now()-providerStart<25000){
+   try{
+    const response=await fetch("http://127.0.0.1:"+providerPort+"/",{
+     signal:AbortSignal.timeout(1500)});
+    if(response.status===404){ready=true;break}
+   }catch{}
+   await Bun.sleep(250);
+  }
+  if(!ready)throw new Error("TRANSIENT_LOCAL_SERVICE_BINDING:provider not ready");
+  caller=spawn("wrangler.worker-cache-local-client.jsonc",callerPort,state);
+  const clientUrl="http://127.0.0.1:"+callerPort;
+  const start=Date.now();
+  let last="";
+  while(Date.now()-start<25000){
+   try{
+    await proveCache(clientUrl);
+    const hidden=await fetch(clientUrl+"/",{signal:AbortSignal.timeout(4000)});
+    if(hidden.status!==404)throw new Error("CONTRACT_FAILED_PUBLIC_ROUTE");
+    return;
+   }catch(error){
+    last=errorMessage(error);
+    if(last.startsWith("CONTRACT_FAILED"))throw error;
+   }
+   await Bun.sleep(400);
+  }
+  throw new Error("TRANSIENT_LOCAL_SERVICE_BINDING:"+last);
+ }finally{
+  caller?.kill();provider.kill();
+  await Promise.race([Promise.allSettled([provider.exited,caller?.exited]),Bun.sleep(4000)]);
  }
- if(!providerReady)throw new Error("Dedicated cache Worker failed to become ready");
- caller=start("wrangler.worker-cache-local-client.jsonc",18952);
- const startAt=Date.now();
- let lastError="";
- while(Date.now()-startAt<50000){
-  try{if(await check())break}catch(e){lastError=e instanceof Error?e.message:"unknown"}
-  await Bun.sleep(700);
- }
- if(Date.now()-startAt>=50000)throw new Error("Worker cache local E2E failed: "+lastError);
- const blocked=await fetch("http://127.0.0.1:18952/",{signal:AbortSignal.timeout(4000)});
- if(blocked.status!==404)throw new Error("Local caller leaked an extra route");
- console.log("PASS local two Workers + private Service Binding + per-site Durable Object Redis-like cache");
- console.log("PASS GET SET ADD DEL INCR group flush, site isolation, restricted public surface");
-}finally{
- caller?.kill();cache.kill();
- await Promise.race([Promise.allSettled([cache.exited,caller?.exited]),Bun.sleep(4000)]);
 }
+let completed=false;
+for(let attempt=0;attempt<3;attempt++){
+ try{
+  await pair(attempt);completed=true;
+  if(attempt>0)console.log("Local Wrangler service pairing recovered after",attempt,"bounded retry/retries");
+  break;
+ }catch(error){
+  const message=errorMessage(error);
+  if(!message.startsWith("TRANSIENT_LOCAL_SERVICE_BINDING"))throw error;
+  if(attempt===2)throw new Error("Local service binding remained unavailable after 3 fresh pairs");
+ }
+}
+if(!completed)throw new Error("Local Worker cache evidence incomplete");
+console.log("PASS local two Workers + private Service Binding + per-site Durable Object Redis-like cache");
+console.log("PASS GET SET ADD DEL INCR group flush, concurrent atomic increment, site isolation and restricted public surface");

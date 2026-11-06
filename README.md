@@ -115,7 +115,7 @@ A dedicated **Cloudflare Worker + one Durable Object per site** now implements t
 
 - `bun run worker-cache:build` — dry-run only.
 - `bun run worker-cache:e2e` — two real local Worker processes communicating via Service Binding and site-specific Durable Objects.
-- `wrangler.worker-cache.jsonc` — isolated Worker with `workers_dev:false` and no public routes. A separate example binding is at `wrangler.worker-cache-binding.example.jsonc`.
+- `wrangler.worker-cache.jsonc` — isolated Worker uploaded to Cloudflare as `microwp-worker-cache`; deployment reports **No targets deployed** (`workers_dev:false`, no public routes). A separate example binding is at `wrangler.worker-cache-binding.example.jsonc`.
 - Hard limit per site: **8 MiB logical cache, 1,024 keys, 64 KiB/string, TTL up to one day**. Cache is volatile, LRU, and may be lost at any time on DO eviction; WordPress data must remain authoritative in D1.
 
 This is **not** a full Redis engine, Redis TCP/RESP protocol or a drop-in replacement for the WordPress Redis Object Cache plugin. A PHP-WASM object-cache bridge and correct WordPress invalidation still need separate validation before enabling the cache for live WordPress. This does not itself solve WordPress `exceededCpu`. Details: [Worker-only Redis-like cache design and safety](docs/reports/2026-11-06-microwp-worker-only-redis-cache.md).

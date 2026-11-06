@@ -20,14 +20,17 @@ export default{
    const added=await a.add("public","home","overwrite",3);
    const inc1=await a.incr("public","views");
    const inc2=await a.incr("public","views",2);
+   // Independent RPCs racing over one DO must not lose increments.
+   await Promise.all(Array.from({length:5},()=>a.incr("public","race")));
+   const race=await a.get("public","race");
    const groupDeleted=await a.flushGroup("public");
    const gone=await a.get("public","home");
    const stats=await a.stats();
    await a.flushSite();await b.flushSite();
    const ok=stored&&own==="a-page"&&other===null&&added===false&&
-    inc1===1&&inc2===3&&groupDeleted===2&&gone===null&&stats.entries===0;
+    inc1===1&&inc2===3&&race==="5"&&groupDeleted===3&&gone===null&&stats.entries===0;
    return Response.json({ok,serviceBinding:true,separateSites:other===null,
-    addIsAtomic:added===false,incrementAtomic:inc2===3,groupDeleted,siteEmpty:stats.entries===0},
+    addIsAtomic:added===false,incrementAtomic:inc2===3,concurrentIncrAtomic:race==="5",groupDeleted,siteEmpty:stats.entries===0},
     {status:ok?200:503,headers:{"Cache-Control":"no-store"}});
   }catch(e){
    return Response.json({ok:false,reason:e instanceof Error?e.message:"unknown"},

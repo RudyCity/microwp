@@ -71,6 +71,8 @@ await cache.del("public", "rendered:post:42"); // on publish/update
 - `bun run worker-cache:build` is a **dry run**, not a deploy; the bundle is ~8.35 KiB uncompressed before helper changes.
 - `bun run worker-cache:e2e` runs local dual-Worker verification without paid Cloudflare features or a remote request.
 
+**Cloudflare deploy status (2026-11-06):** The dedicated `microwp-worker-cache` Worker was successfully uploaded as version `f68e6749-8a59-4e85-b6ff-6e4db5fd687c`; Wrangler explicitly reported **No targets deployed**, with `workers_dev:false`, no custom routes, no D1/R2 bindings and no paid CPU settings. A read-only deployments listing confirmed the version. It is **not yet connected to the active WordPress Worker** and cannot be probed through a public URL. Only an authorized Service Binding can invoke its RPC method.
+
 **Status:** standalone cache implemented and locally validated. Not yet integrated into live WordPress object-cache.php; does not fix `exceededCpu` without the separate real-Free Durable Object CPU evidence. No upgrade or Redis subscription required.
 
 ### Security/operational rules
@@ -80,3 +82,7 @@ await cache.del("public", "rendered:post:42"); // on publish/update
 3. No persistent store, no replication/failover guarantees and no transactional multi-key operations. Do not place authoritative WordPress data here.
 4. Production WordPress staging/current cache settings stay unchanged until an explicitly opt-in cache bridge passes full `wp_cache_*` and invalidation tests.
 5. Keep the source Worker disabled to public traffic and monitor Free request/DO quotas after any future deployment.
+
+### Workerd local Service Binding pairing reliability
+
+The local Windows two-Wrangler dev-process test occasionally returned a transient `Network connection lost` while the Service Binding development session was being paired. No semantic cache corruption was observed: independently rerunning the same Worker code passed. The test runner now retries **at most three fresh, isolated process pairs** on transient local-transport failures only, preserving hard failures for any invalid result, wrong isolation, lost increment or exposed HTTP route. The final run passed three times consecutively; two passes required bounded dev-pairing retries. **These retries are E2E harness-only, not cache runtime behavior**. Linux CI is an independent cross-platform gate. The local caller also sends five simultaneous INCR calls and verifies the counter is exactly five.
