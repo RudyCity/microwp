@@ -10,6 +10,33 @@
 
 microWP runs **official WordPress 7.1.4** and **PHP 8.4.27 WebAssembly** inside the Cloudflare Workers runtime. It is not a static-site exporter or a replacement CMS. This project is **not affiliated with or endorsed by WordPress Foundation, Automattic, or Cloudflare**.
 
+## Production roadmap and current gate
+
+microWP is intentionally **fail-closed** for public production. The current verified local baseline is **364 tests passed, 0 failed, 2,880 assertions**, real local WordPress install/login/editorial/media/restart E2E passes, and the production preflight is still **2 / 14 gates PASS**.
+
+The complete production backlog and definitions of done live in [`docs/plans/2026-11-06-microwp-remaining-work-to-production.md`](docs/plans/2026-11-06-microwp-remaining-work-to-production.md). That document is the release source of truth.
+
+The remaining critical path is:
+
+1. **Exact WordPress SQL-template corpus** — capture sanitized structural templates from real WordPress workflows without retaining credentials, content or raw literals.
+2. **Canonical D1 WordPress schema** — remove research-only `site_id` assumptions, define core tables/indexes/type mapping, multisite policy and schema versioning.
+3. **Real query-native D1 `wpdb` adapter** — preserve `wpdb` result/error/affected-row/`insert_id` behavior, use an explicit supported-template registry, and fail hard on unsupported queries. No silent SQLite fallback.
+4. **Complete core behavior** — finish WP_Query/search/pagination/aggregate coverage, taxonomy writes, users/roles/auth, comment update/delete/count synchronization, revisions/autosave and cron.
+5. **Atomic writes and deletion** — prove transactions/retries/concurrency, post delete/cascade, cache invalidation, media references and crash-safe idempotency.
+6. **Lossless migration and rollback** — migrate the existing SQLite snapshot source to query-native D1 with row/hash verification, safe cutover, backup and rehearsed rollback.
+7. **Full native-D1 WordPress E2E** — install, login, dashboard, create/update/delete content, revisions, taxonomy, comments, media, settings, restart and fault injection with the snapshot path disabled.
+8. **Private Cloudflare staging evidence** — run real remote admin/REST/media workloads against isolated staging D1/R2 with no public production traffic.
+9. **Cloudflare Free runtime proof** — measure actual ingress/DO CPU, trustworthy peak isolate memory, D1/R2 API/query/storage usage and daily quota headroom. Local wall time or local RSS is not accepted as platform evidence.
+10. **Security and recovery** — complete auth/CSRF/nonce tests, tenant isolation, secret rotation, route/binding review, backups, D1/R2 restore and destructive fault-injection recovery.
+11. **Compatibility and operations** — define supported plugins/features, upgrade policy, monitoring/alerts and runbooks.
+12. **Production gate** — `bun run production:preflight` must reach **14 / 14 PASS**, followed by explicit operator approval, before any public cutover.
+
+### Hard NO-GO rules
+
+Until the production gate is complete, do **not** enable native D1 `wpdb` in production, delete the SQLite snapshot source of truth, silently initialize an empty database when legacy data exists, deploy localhost proof Workers, expose research endpoints, add arbitrary raw-SQL passthrough, infer Cloudflare CPU/memory from local measurements, or use paid Cloudflare services to bypass the Free-tier architecture.
+
+The next recommended milestone is **R37**: sanitized exact SQL-template capture → canonical D1 schema/identity semantics → opt-in no-fallback `wpdb` adapter → native-D1 WordPress E2E.
+
 ## Cloudflare Free production hardening: D1/R2 durability (2026-11-06)
 
 The live production gate remains closed, but the existing WordPress/PHP-WASM storage route now has two additional **tested safety properties**:
@@ -131,7 +158,7 @@ This is **not** a full Redis engine, Redis TCP/RESP protocol or a drop-in replac
 
 ## WordPress D1 autoload in one transactional batch (experimental)
 
-A separate, **non-installed** native D1 prototype now uses Cloudflare `D1.batch()` for a single transactional read of the pinned WordPress autoload options query. It prepares 11 site-scoped SELECTs in one batch: ten 50-option pages and one mandatory overflow check. It refuses 501+ options, unexpectedly large values, malformed rows and untrusted scope/query text rather than serving incomplete `alloptions`. Tests include a **real local Cloudflare Workerd D1 binding**, not only Bun SQLite mocks. `bun run d1:atomic-e2e` reproduces this proof. The batch contains 11 D1 queries, within the Free limit of 50 queries per invocation, but it does **not** prove total WordPress Free-tier CPU, daily quota, or complete `wpdb` readiness. [Atomic D1 autoload proof](docs/reports/2026-11-06-microwp-d1-atomic-autoload-batch-proof.md).
+A separate, **non-installed** native D1 prototype now uses Cloudflare `D1.batch()` for a single transactional read of the pinned WordPress autoload options query. It prepares 11 site-scoped SELECTs in one batch: ten 50-option pages and one mandatory overflow check. It refuses 501+ options, unexpectedly large values, malformed rows and untrusted scope/query text rather than serving incomplete `alloptions`. Tests include a **real local Cloudflare Workerd D1 binding**, not only Bun SQLite mocks. `bun run d1:atomic-e2e` reproduces this proof. The batch executes 11 SQL statements inside one `D1.batch()` API call; SQL statement count, D1 API/subrequest count, rows read/written and daily quotas are separate limits and must be measured independently. It does **not** prove total WordPress Free-tier CPU, quota headroom or complete `wpdb` readiness. [Atomic D1 autoload proof](docs/reports/2026-11-06-microwp-d1-atomic-autoload-batch-proof.md).
 
 ## Verified, bounded WordPress autoload option reads (experimental)
 

@@ -180,3 +180,68 @@ Status: public open-source experimental alpha v0.2.0-alpha.5; staging locked; NO
 - Comment COUNT/read are bounded IN/GROUP/ORDER operations; comment INSERT is same-site parent guarded; commentmeta is bounded and ordered. Never log comment content or expose proof endpoints remotely.
 - Explicit IDs are test-fixture semantics only. Canonical WordPress AUTO_INCREMENT, insert_id, affected rows, hooks, comment_count, moderation and cache invalidation are NOT implemented.
 - Do not extend db.php by guessing write SQL from the categorical R36 census. Require an exact sanitized template corpus or typed WordPress integration before opt-in activation. Run focused tests, local Workerd D1, full check, real WordPress e2e and dry-run builds before commit. Production remains fail-closed.
+
+## Production completion master directive (2026-11-06)
+
+The authoritative end-to-end backlog is `docs/plans/2026-11-06-microwp-remaining-work-to-production.md`. Every worker must read it before starting new production-path work. When implementation materially changes a production gap, update that plan and the public README in the same milestone. Historical reports are evidence, not the current release checklist.
+
+Current verified baseline at commit `696730b`:
+
+- 364 tests PASS, 0 FAIL, 2,880 assertions across 64 files.
+- Authentic local WordPress install/login/dashboard/REST/editorial/R2 media/restart E2E PASS.
+- Local real Workerd D1 proofs cover bounded options, posts/postmeta, users/usermeta, taxonomy, comments/count/commentmeta, and selected mutations.
+- The active WordPress database path is still PHP-WASM SQLite Integration with verified D1 snapshot persistence. Query-native D1 helpers remain private/non-installed research modules.
+- Production preflight is **2 / 14 PASS**. The release status is **NO-GO**.
+
+### Mandatory critical path
+
+Work in this order unless a blocking dependency requires a narrower prerequisite:
+
+1. **R37-A exact sanitized SQL-template corpus.** Capture real WordPress 7.1.4 structural SQL templates for install, login/logout, dashboard, options/settings, create/update/delete post, revisions/autosave, taxonomy, comments, users, media, cron and representative plugin lifecycle. Redact literals/content/passwords/cookies/secrets. Do not build a generic raw-SQL gateway.
+2. **R37-B canonical D1 WordPress schema and identity semantics.** Define core tables, indexes/unique constraints, MySQL→SQLite/D1 type/collation behavior, schema versioning, single-site/multisite mapping, safe ID allocation and WordPress-compatible `insert_id`.
+3. **R37-C opt-in native D1 `wpdb` adapter.** Disabled by default. Supported exact templates/typed operations only. Preserve WordPress `prepare`, escaping, result shapes, `num_rows`, `rows_affected`, `insert_id`, errors and NULL semantics. When native mode is enabled, unsupported SQL MUST fail closed; never silently fall back to SQLite snapshots.
+4. **Complete query/write semantics.** Finish WP_Query filters/search/LIKE/date/pagination/ORDER/GROUP/DISTINCT/COUNT/meta/taxonomy JOIN coverage; taxonomy writes; user/usermeta CRUD and roles; comments update/trash/spam/delete/commentmeta/comment_count; revisions/autosave; cron; cache invalidation.
+5. **Atomicity, retries and destructive lifecycle.** Prove concurrency, transactions/batches/fencing, idempotent retry, post delete/cascade across postmeta/taxonomy/comments/media/cache, and interruption recovery. Never add `DELETE wp_posts` before dependent cleanup is proven atomic/recoverable.
+6. **Reversible SQLite-snapshot → query-native D1 migration.** Preserve the source snapshot until row/hash/invariant verification passes. Implement versioned migration, safe write freeze/cutover, backup, rollback and failed-migration recovery. Never initialize a fresh DB when legacy data exists.
+7. **Native-D1 WordPress E2E with snapshot path disabled.** Install, login, dashboard, publish/update/delete, revisions/autosave, taxonomy, comments, media, settings/options, restart and fault injection must prove every required DB operation routes through D1 query API.
+8. **Private remote staging.** Use isolated staging D1/R2, no public production traffic. Run remote installer/admin/REST/media/auth/restart workflows and collect trustworthy Cloudflare telemetry.
+9. **Cloudflare Free evidence.** Measure actual ingress Worker CPU, SQLite Durable Object CPU, trustworthy peak isolate memory, D1 API requests, SQL statements, rows read/written, database growth, R2 calls/storage and daily quota headroom. Local Workerd wall time/RSS/WASM size are never substitutes.
+10. **Security, tenant isolation and recovery.** Complete nonce/CSRF/cookie/REST/admin authorization tests, final tenant model, secret rotation, dependency/route/binding/upload/SQL/SSRF/R2/D1 audit, D1+R2 backup/restore and destructive fault-injection rehearsal.
+11. **Compatibility/operations.** Produce supported WordPress feature and plugin matrices, upgrade/rollback policy, monitoring/alerts, migration/recovery runbooks and release checklist.
+12. **Final release gate.** `bun run production:preflight` must report **14 / 14 PASS**, all required local and remote E2E must pass, and the operator must explicitly approve public cutover.
+
+### Production preflight gates
+
+Keep these fourteen gates independent; never substitute one proof for another:
+
+1. pinned WordPress/SQLite manifests,
+2. official WordPress checksum,
+3. stable WordPress salts/secrets,
+4. approved HTTPS WordPress site URL,
+5. real R2 media end-to-end,
+6. database crash/restart recovery,
+7. private Cloudflare staging HTTP/admin/REST,
+8. live platform memory and CPU,
+9. real WordPress bootstrap within Free CPU constraints,
+10. real D1/R2 Free query/subrequest/storage budgets,
+11. active query-level native D1 `wpdb` plus migration,
+12. WordPress authentication/CSRF/nonces,
+13. security + backups + restore,
+14. explicit operator production approval.
+
+### Non-negotiable NO-GO behavior
+
+- Do not enable native D1 `wpdb` in production while any P0 gate is unresolved.
+- Do not delete or overwrite the current SQLite snapshot source of truth before verified migration and rollback.
+- Do not expose local proof endpoints, CPU canaries, D1 research Workers or diagnostics publicly.
+- Do not pass caller-controlled raw SQL, table names, site identities, projections, ORDER/LIMIT or schema mutations into D1.
+- Do not guess MySQL/`wpdb` behavior from the categorical R36 census; use exact sanitized templates or typed host operations.
+- Do not report local timing as Cloudflare CPU or local process RSS as isolate memory.
+- Do not conflate SQL statement count, D1 API/subrequest count, rows read/written or daily quotas.
+- Do not log auth hashes, cookies, nonces, salts, real content or unredacted SQL literals.
+- Do not change billing, enable paid Cloudflare compute, or make a public cutover to bypass a Free-tier blocker.
+- Do not call the project production-ready until all 14 gates pass and the operator approves release.
+
+### Required verification for production-path milestones
+
+At minimum, run `bun run check`, focused tests for changed modules, `bun run d1:option-mutation-e2e` when D1 conformance changes, `bun run e2e:local`, `bun run durable:build`, `bun run staging:build`, `git diff --check`, and `bun run production:preflight`. A nonzero production preflight is expected until the corresponding real evidence exists; never weaken a gate to make it green.
