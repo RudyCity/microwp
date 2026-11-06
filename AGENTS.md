@@ -121,3 +121,17 @@ Status: public open-source experimental alpha v0.2.0-alpha.4; staging locked; NO
 - D1 Free is limited to 50 queries per Worker invocation and 100 bound SQL parameters per query. `src/storage/d1-sqlite.ts` must combine up to 32 canonical media journal entries into one prepared insert, commit the D1 image and journal atomically, and bulk-ack the journal only after **both** canonical and legacy R2 bulk deletions succeed. R2 supports arrays of up to 1,000 keys; two bulk deletes protect Free subrequest headroom.
 - `bun run d1:absence-e2e` deliberately deletes a D1 manifest **only in an ignored local Workerd state** for a locally installed WordPress site. Never run this destructive fault-injection test against remote D1, Cloudflare staging, or user data.
 - Local budget tests, correctness, crash recovery and dry-run bundles do **not** prove Cloudflare Free daily quotas, isolated CPU/memory, encrypted backups, full native `wpdb` or production readiness. The separately authenticated remote DO canary, operator approval and backup rehearsal remain required. All code, tests, comments, reports and commit messages must be in English.
+
+## Private WordPress option write proof (2026-11-06)
+
+- The non-installed host-only module src/php/d1-wpdb-conformance/options-mutation.ts performs prepared site-scoped D1 UPSERT in one query and protected DELETE in one atomic two-query batch. It requires distinct opaque operation capabilities and a trusted table/site identity; never allow PHP/HTTP to choose SQL, site identity or a capability.
+- The UPSERT requires UNIQUE(site_column, option_name) in the actual D1 schema; DELETE refuses duplicate matches without destructive effects. Inputs and outputs are bounded. This is not complete WordPress wpdb, not an active driver and does not provide D1/R2/cache atomicity.
+- bun run d1:option-mutation-e2e uses an isolated localhost Workerd D1 fixture (placeholder UUID ending in 0013) to verify insert, update, site isolation, restart persistence, scoped delete and a wrong capability denial. Never deploy the local proof or run it on remote/staging D1.
+- Real Cloudflare Free CPU, isolate memory, daily quotas, a lossless reversible full wpdb migration and complete WordPress query conformance remain release blockers. Keep public WordPress routes disabled. Code and docs must remain English; same checkout, no new worktree.
+
+## Offline Free DO CPU log correlation (2026-11-06)
+
+- bun run cpu:correlate-canary correlates the private 7-task HTTP canary response with exactly one normalized ingress Worker and one SQLite Durable Object invocation per opaque UUID. Input files are fixed ignored paths under .wrangler/; it never fetches logs or changes Cloudflare account settings.
+- The operator-normalized telemetry is **not authenticated** by the script: even when all reported CPU/memory values are within the nominal Free budgets, the result is diagnostics only and **never** authorizes production or public WordPress routes.
+- Missing DO/ingress records, duplicates, unexpected probe modes, absent cpuTime, overbudget CPU, absent/excess memory, failed outcomes and mismatched HTTP status must not be interpreted as successful measurements. Never use client wall time as CPU.
+- Independent Cloudflare platform invocations and deployment identity, trusted source provenance, operator-installed canary secret and actual Free-account eligibility still need verification. Do not use Paid-only Tail Workers or enable paid services. Source, tests and docs in English.

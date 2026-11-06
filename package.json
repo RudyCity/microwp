@@ -38,10 +38,12 @@
     "wp-cache:editorial-e2e": "bash scripts/wp-cache-editorial-e2e.sh",
     "wp-cache:resilience-e2e": "bash scripts/wp-cache-resilience-local-e2e.sh",
     "cpu:evidence-audit": "bun scripts/audit-cloudflare-free-cpu.ts",
+    "cpu:correlate-canary": "bun scripts/correlate-free-do-canary.ts",
     "d1:mutation-prototype-test": "bun test tests/d1-protocol-mutation-capability.test.ts",
     "d1:atomic-e2e": "bash scripts/d1-atomic-autoload-local-e2e.sh",
     "d1:single-e2e": "bash scripts/d1-single-autoload-local-e2e.sh",
-    "d1:absence-e2e": "bash scripts/d1-absence-recovery-local-e2e.sh"
+    "d1:absence-e2e": "bash scripts/d1-absence-recovery-local-e2e.sh",
+    "d1:option-mutation-e2e": "bash scripts/d1-option-mutation-local-e2e.sh"
   },
   "dependencies": {
     "@php-wasm/universal": "3.1.62",
