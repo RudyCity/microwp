@@ -55,3 +55,7 @@ bun run e2e:local                # existing WordPress installer/login/editorial 
 Only after a later, independent WordPress editorial E2E with the cache enabled, robust invalidation, security audit, and live Cloudflare Free CPU/memory verification should staging's Service Binding/opt-in flag be considered. The next workstream is end-to-end cache invalidation for posts/terms/options with safe, nonprivate groups and an explicit rollback plan.
 
 **No paid services, account changes, D1/R2 mutations, public route activation or production cache enablement belong to this stage.**
+
+## Independent internal cache Worker deployment (2026-11-06)
+
+After the code and Linux CI verification succeeded, only the dedicated `microwp-worker-cache` Worker was updated to version `8bf61c9a-01b4-4234-b5a6-c4fe30f2da38` with explicit RPC result/stub disposal. Wrangler confirmed **No targets deployed** and no public URL/route. No PHP local-proof Worker was deployed. The WordPress staging Worker, its D1 and R2 bindings, DNS, billing and public gate remained unchanged. Live Free-tier WordPress CPU and production object-cache semantics are **still unverified**.
