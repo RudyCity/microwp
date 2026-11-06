@@ -24,6 +24,38 @@ if(stage==="before-restart"){
   if(get.status!==404)throw Error("Public GET must be denied");
   console.log("PASS no public GET");
   if(JSON.stringify(await rows())!==JSON.stringify([b]))throw Error("Local fixture mismatch");
+  const taxonomy=await request("/__local/taxonomy-read");
+  if(taxonomy.status!==200||taxonomy.raw.ok!==true||
+     !Array.isArray(taxonomy.raw.rows)||taxonomy.raw.rows.length!==3||
+     JSON.stringify(taxonomy.raw.rows).includes("PRIVATE")||
+     JSON.stringify((taxonomy.raw.rows as Array<Record<string,unknown>>)
+       .map(row=>[row.object_id,row.term_id,row.taxonomy]))!==
+       JSON.stringify([[1,1,"category"],[1,2,"post_tag"],[3,1,"category"]]))
+    throw Error("Local D1 fixed taxonomy JOIN leaked or returned wrong rows");
+  console.log("PASS one-query native D1 taxonomy DISTINCT JOIN/IN stays site-scoped");
+  const userAuth=await request("/__local/user-auth-read");
+  if(userAuth.status!==200||userAuth.raw.ok!==true||userAuth.raw.ID!==1||
+     userAuth.raw.user_login!=="admin"||userAuth.raw.user_pass!=="$P$hash_a"||
+     JSON.stringify(userAuth.raw).includes("PRIVATE_B"))
+    throw Error("Local D1 minimal user auth lookup leaked or returned wrong site");
+  const userMeta=await request("/__local/usermeta-read");
+  if(userMeta.status!==200||userMeta.raw.ok!==true||
+     !Array.isArray(userMeta.raw.rows)||userMeta.raw.rows.length!==3||
+     JSON.stringify(userMeta.raw.rows).includes("PRIVATE"))
+    throw Error("Local D1 usermeta IN/order read leaked another site");
+  console.log("PASS one-query native D1 user auth and usermeta reads stay site-scoped");
+  const postsRead=await request("/__local/core-posts-read");
+  if(postsRead.status!==200||postsRead.raw.ok!==true||
+     JSON.stringify(postsRead.raw.ids)!==JSON.stringify([1,3])||
+     JSON.stringify(postsRead.raw.titles)!==JSON.stringify(["Alpha","Gamma"])||
+     JSON.stringify(postsRead.raw.statuses)!==JSON.stringify(["publish","draft"]))
+    throw Error("Local D1 core posts batch read or site isolation failed");
+  const metaRead=await request("/__local/core-postmeta-read");
+  if(metaRead.status!==200||metaRead.raw.ok!==true||
+     !Array.isArray(metaRead.raw.rows)||metaRead.raw.rows.length!==3||
+     JSON.stringify(metaRead.raw.rows).includes("PRIVATE"))
+    throw Error("Local D1 postmeta cache-shape read or site isolation failed");
+  console.log("PASS one-query native D1 post batch and postmeta IN/order reads stay site-scoped");
   const exists=await request("/__local/schema-exists");
   if(exists.status!==200||exists.raw.ok!==true||exists.raw.kind!=="show-tables-like"||
      exists.raw.exists!==true||exists.raw.queryCount!==1||
@@ -109,6 +141,28 @@ if(stage==="before-restart"){
   if(JSON.stringify(await rows())!==JSON.stringify(expected))
     throw Error("Committed option not durable across Workerd restart");
   console.log("PASS native D1 option survives local Workerd restart");
+  const taxonomyAfterRestart=await request("/__local/taxonomy-read");
+  if(taxonomyAfterRestart.status!==200||
+     !Array.isArray(taxonomyAfterRestart.raw.rows)||
+     taxonomyAfterRestart.raw.rows.length!==3||
+     JSON.stringify(taxonomyAfterRestart.raw.rows).includes("PRIVATE"))
+    throw Error("Native D1 taxonomy JOIN changed after restart");
+  console.log("PASS native D1 taxonomy JOIN survives Workerd restart");
+  const userAfterRestart=await request("/__local/user-auth-read");
+  const userMetaAfterRestart=await request("/__local/usermeta-read");
+  if(userAfterRestart.status!==200||userAfterRestart.raw.ID!==1||
+     userAfterRestart.raw.user_pass!=="$P$hash_a"||
+     userMetaAfterRestart.status!==200||
+     !Array.isArray(userMetaAfterRestart.raw.rows)||userMetaAfterRestart.raw.rows.length!==3)
+    throw Error("Native D1 user/usermeta reads changed after restart");
+  console.log("PASS native D1 user auth and usermeta reads survive Workerd restart");
+  const postsAfterRestart=await request("/__local/core-posts-read");
+  const metaAfterRestart=await request("/__local/core-postmeta-read");
+  if(postsAfterRestart.status!==200||metaAfterRestart.status!==200||
+     JSON.stringify(postsAfterRestart.raw.ids)!==JSON.stringify([1,3])||
+     !Array.isArray(metaAfterRestart.raw.rows)||metaAfterRestart.raw.rows.length!==3)
+    throw Error("Native D1 posts/postmeta reads changed after restart");
+  console.log("PASS native D1 posts and postmeta reads survive Workerd restart");
   const persistedSchema=await request("/__local/schema-describe");
   if(persistedSchema.status!==200||persistedSchema.raw.kind!=="describe"||
      persistedSchema.raw.queryCount!==1||

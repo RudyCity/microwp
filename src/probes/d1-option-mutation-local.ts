@@ -6,10 +6,19 @@ import {mutateTrustedWordPressOption} from "../php/d1-wpdb-conformance/options-m
 import {createPrivateWordPressOptionStore} from "../php/d1-wpdb-conformance/options-store";
 import {readPrivateWordPressMetadata} from "../php/d1-wpdb-conformance/schema-metadata";
 import {executePinnedWordPressOptionUpsert,PINNED_WP_OPTION_UPSERT_TEMPLATE} from "../php/d1-wpdb-conformance/options-upsert-template";
+import {readPrivateCorePostsByIds,readPrivatePostMetaByPostIds} from "../php/d1-wpdb-conformance/core-reads";
+import {readPrivateUserAuthByLogin,readPrivateUserMetaByUserIds} from "../php/d1-wpdb-conformance/user-reads";
+import {readPrivateObjectTerms} from "../php/d1-wpdb-conformance/taxonomy-reads";
 interface Env {DB:D1Database}
 const putCap=Object.freeze({hostOnly:"put"}),deleteCap=Object.freeze({hostOnly:"delete"});
 const readCap=Object.freeze({hostOnly:"read"});
 const schemaCap=Object.freeze({hostOnly:"schema"});
+const postsCap=Object.freeze({hostOnly:"posts"}),postMetaCap=Object.freeze({hostOnly:"postmeta"});
+const CORE_READ_CONFIG={scope:{column:"site_id",value:"site_a"},postsCapability:postsCap,postMetaCapability:postMetaCap} as const;
+const userAuthCap=Object.freeze({hostOnly:"user-auth"}),userMetaCap=Object.freeze({hostOnly:"usermeta"});
+const USER_READ_CONFIG={scope:{column:"site_id",value:"site_a"},authCapability:userAuthCap,userMetaCapability:userMetaCap} as const;
+const taxonomyCap=Object.freeze({hostOnly:"taxonomy"});
+const TAXONOMY_READ_CONFIG={scope:{column:"site_id",value:"site_a"},capability:taxonomyCap} as const;
 const SCHEMA_CONFIG={table:"wp_options",capability:schemaCap} as const;
 const CONFIG={table:"wp_options",scope:{column:"site_id",value:"site_a"},
   writeCapabilities:{put:putCap,delete:deleteCap}} as const;
@@ -36,6 +45,32 @@ export default {
     try{
       if(url.pathname==="/__local/read"){
         return Response.json({ok:true,rows:await read(env.DB)},{headers:HEADERS});
+      }
+      if(url.pathname==="/__local/taxonomy-read"){
+        const rows=await readPrivateObjectTerms(
+          [3,2,1],["category","post_tag"],TAXONOMY_READ_CONFIG,env.DB,taxonomyCap
+        );
+        return Response.json({ok:true,rows},{headers:HEADERS});
+      }
+      if(url.pathname==="/__local/user-auth-read"){
+        const row=await readPrivateUserAuthByLogin("admin",USER_READ_CONFIG,env.DB,userAuthCap);
+        if(!row)throw Error("Missing local user");
+        return Response.json({ok:true,ID:row.ID,user_login:row.user_login,
+          user_pass:row.user_pass,user_status:row.user_status},{headers:HEADERS});
+      }
+      if(url.pathname==="/__local/usermeta-read"){
+        const rows=await readPrivateUserMetaByUserIds([2,1],USER_READ_CONFIG,env.DB,userMetaCap);
+        return Response.json({ok:true,rows},{headers:HEADERS});
+      }
+      if(url.pathname==="/__local/core-posts-read"){
+        const rows=await readPrivateCorePostsByIds([3,2,1],CORE_READ_CONFIG,env.DB,postsCap);
+        return Response.json({ok:true,ids:rows.map(row=>row.ID),
+          titles:rows.map(row=>row.post_title),statuses:rows.map(row=>row.post_status)},
+          {headers:HEADERS});
+      }
+      if(url.pathname==="/__local/core-postmeta-read"){
+        const rows=await readPrivatePostMetaByPostIds([3,2,1],CORE_READ_CONFIG,env.DB,postMetaCap);
+        return Response.json({ok:true,rows},{headers:HEADERS});
       }
       if(url.pathname==="/__local/template-option-insert"||
          url.pathname==="/__local/template-option-update"){
