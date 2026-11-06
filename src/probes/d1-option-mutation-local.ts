@@ -4,9 +4,13 @@
  */
 import {mutateTrustedWordPressOption} from "../php/d1-wpdb-conformance/options-mutation";
 import {createPrivateWordPressOptionStore} from "../php/d1-wpdb-conformance/options-store";
+import {readPrivateWordPressMetadata} from "../php/d1-wpdb-conformance/schema-metadata";
+import {executePinnedWordPressOptionUpsert,PINNED_WP_OPTION_UPSERT_TEMPLATE} from "../php/d1-wpdb-conformance/options-upsert-template";
 interface Env {DB:D1Database}
 const putCap=Object.freeze({hostOnly:"put"}),deleteCap=Object.freeze({hostOnly:"delete"});
 const readCap=Object.freeze({hostOnly:"read"});
+const schemaCap=Object.freeze({hostOnly:"schema"});
+const SCHEMA_CONFIG={table:"wp_options",capability:schemaCap} as const;
 const CONFIG={table:"wp_options",scope:{column:"site_id",value:"site_a"},
   writeCapabilities:{put:putCap,delete:deleteCap}} as const;
 const STORE_CONFIG={...CONFIG,readCapability:readCap};
@@ -32,6 +36,40 @@ export default {
     try{
       if(url.pathname==="/__local/read"){
         return Response.json({ok:true,rows:await read(env.DB)},{headers:HEADERS});
+      }
+      if(url.pathname==="/__local/template-option-insert"||
+         url.pathname==="/__local/template-option-update"){
+        const isUpdate=url.pathname==="/__local/template-option-update";
+        const mutation=await executePinnedWordPressOptionUpsert(
+          PINNED_WP_OPTION_UPSERT_TEMPLATE,
+          ["template_option",isUpdate?"updated":"created",isUpdate?"off":"no"],
+          CONFIG,env.DB,putCap
+        );
+        const store=createPrivateWordPressOptionStore(STORE_CONFIG,env.DB);
+        const after=await store.get("template_option",readCap);
+        return Response.json({ok:true,mutation,after},{headers:HEADERS});
+      }
+      if(url.pathname==="/__local/template-option-read"){
+        const store=createPrivateWordPressOptionStore(STORE_CONFIG,env.DB);
+        const value=await store.get("template_option",readCap);
+        return Response.json({ok:true,value,queries:store.usedQueries},{headers:HEADERS});
+      }
+      if(url.pathname==="/__local/template-option-delete"){
+        const store=createPrivateWordPressOptionStore(STORE_CONFIG,env.DB);
+        const mutation=await store.delete("template_option",deleteCap);
+        return Response.json({ok:true,mutation},{headers:HEADERS});
+      }
+      if(url.pathname==="/__local/schema-exists"){
+        const metadata=await readPrivateWordPressMetadata(
+          "SHOW TABLES LIKE 'wp_options'",SCHEMA_CONFIG,env.DB,schemaCap
+        );
+        return Response.json({ok:true,...metadata},{headers:HEADERS});
+      }
+      if(url.pathname==="/__local/schema-describe"){
+        const metadata=await readPrivateWordPressMetadata(
+          "DESCRIBE wp_options",SCHEMA_CONFIG,env.DB,schemaCap
+        );
+        return Response.json({ok:true,...metadata},{headers:HEADERS});
       }
       if(url.pathname==="/__local/store-batch-read"){
         const store=createPrivateWordPressOptionStore(STORE_CONFIG,env.DB);

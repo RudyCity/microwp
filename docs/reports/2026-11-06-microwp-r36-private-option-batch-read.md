@@ -13,7 +13,7 @@ The R36 local genuine WordPress PHP-WASM census measured approximately 1,723 log
 - Exactly one prepared scoped SELECT uses 2 bounded projection arguments, 1 server-owned site ID, up to 96 option-name binds, and 1 LIMIT witness, for at most **100 SQL bindings**.
 - SQL-side projections and strict complete response validation refuse overlong options, duplicate or unexpected rows, malformed responses, unsorted output, and aggregate key/value bytes above 64 KiB.
 - Returns an immutable, null-prototype map where absent names are null, present empty strings remain empty, and special __proto__ names cannot mutate object prototypes.
-- A separate opaque read capability is required. Malformed input fails before D1 preparation; attempted database work counts toward the **per-store** 50-query budget even if D1 fails. The total Worker invocation's unrelated D1 queries are not accounted for by this store.
+- A separate opaque read capability is required. Malformed input fails before D1 preparation; attempted database work counts toward the **per-store** 50-query budget even if D1 fails. DELETE consumes two conservative statement-weighted units in this store even though its two SQL statements execute within ONE D1 batch API call (one Free D1 query request). This store is therefore not exact D1 API-subrequest accounting, and the total Worker invocation's unrelated D1 requests are not accounted for.
 - No cross-request cache, public route, remote deployment, live WordPress db.php adapter, schema migration, credential or billing change.
 
 ## Verified local evidence

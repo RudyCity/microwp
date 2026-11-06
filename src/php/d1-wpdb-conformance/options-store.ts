@@ -92,6 +92,9 @@ export function createPrivateWordPressOptionStore(
       put:config.writeCapabilities.put,delete:config.writeCapabilities.delete
     })
   });
+  // Conservative statement-weighted guard within this store only. DELETE
+  // charges two units even though D1 counts its two-statement batch as one
+  // API subrequest. This deliberately underutilizes, never exceeds, the cap.
   let used=0;
   const authorize=(caller:unknown,required:object)=>{
     if(!capability(caller)||caller!==required)return refuse();

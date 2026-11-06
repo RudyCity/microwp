@@ -21,6 +21,9 @@ import {
 export const MAX_ATOMIC_OPTION_VALUE_BYTES = 2048;
 export const MAX_ATOMIC_OPTION_NAME_BYTES = 191;
 export const ATOMIC_AUTOLOAD_BATCH_STATEMENTS = MAX_AUTOLOAD_OPTIONS / MAX_ROWS + 1;
+// Cloudflare D1 Free counts one batch() API call toward the 50-query-per-
+// Worker-invocation subrequest ceiling, not each SQL statement in the batch.
+export const ATOMIC_AUTOLOAD_D1_API_CALLS = 1;
 
 export interface TrustedAtomicAutoloadConfig extends AutoloadOptionsConfig {
   /** Private host-owned tenant identity; never accepted from WordPress PHP/HTTP. */

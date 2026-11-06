@@ -33,7 +33,8 @@ export type OptionWriteResult=Readonly<{
 export const OPTION_WRITE_NAME_MAX_BYTES=191;
 export const OPTION_WRITE_VALUE_MAX_BYTES=2048;
 export const OPTION_PUT_QUERY_COUNT=1;
-export const OPTION_DELETE_QUERY_COUNT=2;
+export const OPTION_DELETE_QUERY_COUNT=2; // SQL statements in one atomic batch.
+export const OPTION_DELETE_D1_API_CALLS=1; // One D1 batch() API invocation.
 const AUTOLOAD_VALUES=new Set(["yes","no","on","off","auto-on","auto-off","auto"]);
 const encoder=new TextEncoder();
 const bytes=(text:string)=>encoder.encode(text).byteLength;

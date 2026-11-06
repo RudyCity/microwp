@@ -34,7 +34,7 @@ Tests: `bun test tests/d1-protocol-bounded-in.test.ts tests/d1-wpdb-autoload-con
 
 ## Atomic D1 batch proof (experimental)
 
-`options-atomic.ts` executes 11 prepared SELECT statements in one Cloudflare D1 SQL transaction, using `D1Database.batch()`. Site identity and table are private trusted configuration. It fails closed on 501+ options, oversized/invalid rows and any batch error. This is stronger than the earlier two-pass consistency comparison; it does not install WordPress `wpdb` and does not guarantee transactionality across separate WordPress D1/R2/cache resources. The 11 statements count as 11 queries toward the Free 50-query-per-invocation limit.
+`options-atomic.ts` executes 11 prepared SELECT statements in one Cloudflare D1 SQL transaction, using `D1Database.batch()`. Site identity and table are private trusted configuration. It fails closed on 501+ options, oversized/invalid rows and any batch error. This is stronger than the earlier two-pass consistency comparison; it does not install WordPress `wpdb` and does not guarantee transactionality across separate WordPress D1/R2/cache resources. The 11 SQL statements execute within ONE D1 batch() API call, which Cloudflare currently counts as ONE request toward the Free 50-query-per-invocation limit. Every statement still has its own SQL/bind/result limits and rows-read/written usage.
 
 Run `bun run d1:atomic-e2e` for a real Workerd D1 binding test, or `bun test tests/d1-wpdb-atomic-autoload.test.ts` for isolated failure cases. See [transactional D1 autoload report](../../../docs/reports/2026-11-06-microwp-d1-atomic-autoload-batch-proof.md).
 
@@ -64,3 +64,11 @@ Run `bun test tests/d1-wpdb-option-store.test.ts` and `bun run d1:option-mutatio
 The host-only options-store.ts implements getMany(names, readCapability) to read 1–96 distinct options in one prepared D1 SELECT, using at most 100 bound parameters, strict trusted-site scope, projection and response size bounds, and a 64-KiB aggregate output cap. Missing names map to null and empty values remain empty in an immutable null-prototype map. Wrong capabilities, sparse arrays, duplicate names, duplicate result rows and oversized values fail closed.
 
 This operation counts as one of the 50 per-store D1 query budget, not all queries in the hosting Worker invocation. Run bun test tests/d1-wpdb-option-store.test.ts and bun run d1:option-mutation-e2e to verify real local Workerd D1 behavior, site isolation, revision freshness, 100-bind limit and restart persistence. See docs/reports/2026-11-06-microwp-r36-private-option-batch-read.md. It is not a complete installed wpdb driver and must never be deployed as the local proof.
+
+## R36 schema-metadata families and narrowly pinned option UPSERT
+
+schema-metadata.ts recognizes only fixed pre-prepare DESCRIBE wp_options, DESC wp_options, SHOW COLUMNS FROM wp_options and SHOW TABLES LIKE 'wp_options' spellings. It performs exactly one bound read-only D1 SQLite metadata SELECT (sqlite_master or pragma_table_info), with an independent host-owned capability and a trusted wp_options table. Results are explicitly SQLite column metadata, NOT synthesized MySQL-compatible wpdb DESCRIBE/SHOW response shapes. All other tables, wildcard patterns, SQL comments and arbitrary raw SQL fail before D1.
+
+options-upsert-template.ts recognizes exactly ONE fixed pre-prepare INSERT INTO wp_options ... ON DUPLICATE KEY UPDATE template with three separately typed values. It uses the existing prepared site-scoped one-query ON CONFLICT SQLite UPSERT, requires the actual UNIQUE(site_id,option_name) index and never interpolates the user strings into SQL. MySQL affected-row semantics, other indexes, arbitrary plugins, SQL dialect breadth, and the authentic WordPress schema are still unimplemented.
+
+Reproduce: bun test tests/d1-wpdb-schema-metadata.test.ts tests/d1-wpdb-option-upsert-template.test.ts; bun run d1:option-mutation-e2e. The local real-D1 Workerd test verifies metadata, narrow INSERT/UPDATE, isolation, restart persistence and cleanup. See docs/reports/2026-11-06-microwp-r36-d1-metadata-and-pinned-upsert.md. Neither helper is active in production WordPress. NO-GO.

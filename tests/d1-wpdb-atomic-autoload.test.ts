@@ -2,7 +2,7 @@ import {describe,expect,test} from "bun:test";
 import {Database} from "bun:sqlite";
 import {readFileSync} from "node:fs";
 import {
-  ATOMIC_AUTOLOAD_BATCH_STATEMENTS,loadAtomicWordPressAutoloadOptions
+  ATOMIC_AUTOLOAD_BATCH_STATEMENTS,ATOMIC_AUTOLOAD_D1_API_CALLS,loadAtomicWordPressAutoloadOptions
 } from "../src/php/d1-wpdb-conformance/options-atomic";
 
 const query="SELECT option_name, option_value FROM wp_options WHERE autoload IN ( 'yes', 'on', 'auto-on', 'auto' )";
@@ -47,6 +47,7 @@ describe("experimental D1 atomic WordPress autoload batch",()=>{
     expect(f.batches).toBe(1);
     expect(f.statements).toHaveLength(ATOMIC_AUTOLOAD_BATCH_STATEMENTS);
     expect(ATOMIC_AUTOLOAD_BATCH_STATEMENTS).toBe(11);
+    expect(ATOMIC_AUTOLOAD_D1_API_CALLS).toBe(1);
     expect(Object.getPrototypeOf(options)).toBeNull();
     expect(Object.isFrozen(options)).toBe(true);
     expect(Object.keys(options)).toHaveLength(65);

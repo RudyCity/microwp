@@ -24,6 +24,30 @@ if(stage==="before-restart"){
   if(get.status!==404)throw Error("Public GET must be denied");
   console.log("PASS no public GET");
   if(JSON.stringify(await rows())!==JSON.stringify([b]))throw Error("Local fixture mismatch");
+  const exists=await request("/__local/schema-exists");
+  if(exists.status!==200||exists.raw.ok!==true||exists.raw.kind!=="show-tables-like"||
+     exists.raw.exists!==true||exists.raw.queryCount!==1||
+     exists.raw.mysqlShowTablesCompatible!==false)
+    throw Error("Local D1 table-existence metadata proof failed");
+  const describe=await request("/__local/schema-describe");
+  if(describe.status!==200||describe.raw.ok!==true||describe.raw.kind!=="describe"||
+     describe.raw.queryCount!==1||describe.raw.mysqlDescribeCompatible!==false||
+     !Array.isArray(describe.raw.columns)||
+     JSON.stringify((describe.raw.columns as Array<{name:string}>).map(c=>c.name))!==
+       JSON.stringify(["site_id","option_name","option_value","autoload"]))
+    throw Error("Local D1 schema metadata introspection failed");
+  console.log("PASS native D1 prepared SHOW TABLES and DESCRIBE family inspection");
+  const initialTemplate=await request("/__local/template-option-insert");
+  if(initialTemplate.status!==200||initialTemplate.raw.ok!==true||
+     (initialTemplate.raw.mutation as Record<string,unknown>)?.queryCount!==1||
+     (initialTemplate.raw.after as Record<string,unknown>)?.value!=="created")
+    throw Error("Local one-query pinned option upsert INSERT proof failed");
+  const updatedTemplate=await request("/__local/template-option-update");
+  if(updatedTemplate.status!==200||
+     (updatedTemplate.raw.mutation as Record<string,unknown>)?.queryCount!==1||
+     (updatedTemplate.raw.after as Record<string,unknown>)?.value!=="updated")
+    throw Error("Local one-query pinned option upsert UPDATE proof failed");
+  console.log("PASS narrow WordPress ON DUPLICATE template translated to one prepared scoped D1 UPSERT");
   const wrong=await request("/__local/deny-crossed-capability");
   if(wrong.status!==200||wrong.raw.capabilityRejected!==true)throw Error("Crossed capability allowed");
   if(JSON.stringify(await rows())!==JSON.stringify([b]))throw Error("Crossed capability mutated D1");
@@ -85,6 +109,24 @@ if(stage==="before-restart"){
   if(JSON.stringify(await rows())!==JSON.stringify(expected))
     throw Error("Committed option not durable across Workerd restart");
   console.log("PASS native D1 option survives local Workerd restart");
+  const persistedSchema=await request("/__local/schema-describe");
+  if(persistedSchema.status!==200||persistedSchema.raw.kind!=="describe"||
+     persistedSchema.raw.queryCount!==1||
+     !Array.isArray(persistedSchema.raw.columns)||
+     (persistedSchema.raw.columns as unknown[]).length!==4)
+    throw Error("D1 schema metadata changed after Workerd restart");
+  console.log("PASS native D1 schema introspection survives Workerd restart");
+  const templateAfterRestart=await request("/__local/template-option-read");
+  if(templateAfterRestart.status!==200||templateAfterRestart.raw.queries!==1||
+     (templateAfterRestart.raw.value as Record<string,unknown>)?.value!=="updated")
+    throw Error("Pinned option upsert value did not survive D1 restart");
+  const cleanupTemplate=await request("/__local/template-option-delete");
+  if(cleanupTemplate.status!==200||
+     (cleanupTemplate.raw.mutation as Record<string,unknown>)?.changed!==1)
+    throw Error("Pinned option upsert local fixture cleanup failed");
+  console.log("PASS pinned WordPress option UPSERT survives restart and deletes safely");
+
+
   const afterRestart=await request("/__local/store-read");
   if(afterRestart.status!==200||
      (afterRestart.raw.option as Record<string,unknown>)?.value!=="site_a_updated"||

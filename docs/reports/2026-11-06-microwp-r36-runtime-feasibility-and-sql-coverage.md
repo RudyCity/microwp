@@ -35,7 +35,7 @@ Aggregate observed verbs: SELECT 1,549; INSERT 67; UPDATE 33; DELETE 6; DESCRIBE
 
 The complete 79-row table appears in docs/reports/2026-11-06-microwp-r36-sql-family-matrix.md, generated from local sanitized evidence. Repeated local E2E samples varied slightly (1,723 versus 1,724 SQL statements), so exact totals are observational rather than deterministic. Every row is marked NOT VERIFIED for query-native WordPress D1 wpdb.
 
-**Critical distinction:** These were WordPress logical SQL statements against SQLite inside PHP-WASM, **not actual Cloudflare D1 query invocations**. Translating each statement to an independent D1 call could exceed the Free 50-query/invocation cap for 6 observed requests. Verified batching, caching or alternate data execution must reduce remote D1 calls without dropping WordPress semantics.
+**Critical distinction:** These were WordPress logical SQL statements against SQLite inside PHP-WASM, **not actual Cloudflare D1 query invocations**. Translating each statement to an independent D1 call could exceed the Free 50-query/invocation cap for 6 observed requests. Cloudflare counts a single D1 batch() API call as ONE request towards the 50-query Free cap even if it executes multiple SQL statements. Verified batching, caching or alternate data execution must reduce remote D1 calls without dropping WordPress semantics.
 
 ## Three independent local Workerd bootstrap runs
 
