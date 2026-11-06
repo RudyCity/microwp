@@ -43,7 +43,10 @@
     "d1:atomic-e2e": "bash scripts/d1-atomic-autoload-local-e2e.sh",
     "d1:single-e2e": "bash scripts/d1-single-autoload-local-e2e.sh",
     "d1:absence-e2e": "bash scripts/d1-absence-recovery-local-e2e.sh",
-    "d1:option-mutation-e2e": "bash scripts/d1-option-mutation-local-e2e.sh"
+    "d1:option-mutation-e2e": "bash scripts/d1-option-mutation-local-e2e.sh",
+    "r36:sql-census-e2e": "bash scripts/r36-sql-census-local-e2e.sh",
+    "r36:sql-matrix": "bun scripts/r36-export-sql-matrix.ts",
+    "r36:bootstrap": "bun scripts/r36-local-bootstrap-profile.ts"
   },
   "dependencies": {
     "@php-wasm/universal": "3.1.62",

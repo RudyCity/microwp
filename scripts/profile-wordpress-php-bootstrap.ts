@@ -93,7 +93,7 @@ export function boundedLogTail(input: string, limit = 32_768) {
   return input.length <= limit ? input : input.slice(-limit);
 }
 const DEFAULT_PORT = 18879;
-async function runWorkerd(port = DEFAULT_PORT): Promise<WorkerdSample> {
+export async function runWorkerd(port = DEFAULT_PORT): Promise<WorkerdSample> {
   if (!Number.isInteger(port) || port < 1024 || port > 65535) throw Error("Invalid local port");
   const root = join(import.meta.dir, "..");
   // Wrangler's Miniflare HTTP forwarding requires Node/undici dispatcher.

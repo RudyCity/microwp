@@ -1,0 +1,18 @@
+{
+ "$schema":"./node_modules/wrangler/config-schema.json",
+ "name":"microwp-r36-wordpress-sql-census-local-only",
+ "main":"src/probes/wp-sql-census-local.ts",
+ "compatibility_date":"2026-11-04",
+ "workers_dev":false,
+ "vars":{
+  "MICROWP_STORAGE_DRIVER":"d1",
+  "MICROWP_R36_SQL_CENSUS_LOCAL":"yes"
+ },
+ "assets":{"directory":"./public","binding":"ASSETS","run_worker_first":true},
+ "durable_objects":{"bindings":[{"name":"SITE_DO","class_name":"MicroWPSite"}]},
+ "migrations":[{"tag":"v1","new_sqlite_classes":["MicroWPSite"]}],
+ "d1_databases":[{"binding":"DB","database_name":"microwp-r36-sql-census-local-db",
+  "database_id":"00000000-0000-4000-8000-000000000014","migrations_dir":"migrations"}],
+ "r2_buckets":[{"binding":"MEDIA","bucket_name":"microwp-r36-sql-census-local-media"}],
+ "observability":{"enabled":false}
+}
