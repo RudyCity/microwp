@@ -120,6 +120,10 @@ A dedicated **Cloudflare Worker + one Durable Object per site** now implements t
 
 This is **not** a full Redis engine, Redis TCP/RESP protocol or a drop-in replacement for the WordPress Redis Object Cache plugin. A PHP-WASM object-cache bridge and correct WordPress invalidation still need separate validation before enabling the cache for live WordPress. This does not itself solve WordPress `exceededCpu`. Details: [Worker-only Redis-like cache design and safety](docs/reports/2026-11-06-microwp-worker-only-redis-cache.md).
 
+## Experimental native D1 support for WordPress autoloaded options
+
+The private D1 protocol now supports a **bounded prepared `SELECT WHERE ... IN (...)`** operation, and the non-installed WordPress query translator recognizes `wp_load_alloptions()` with the four official autoload values. Strict protocol/SQLite tests verify server-owned site isolation, bound parameters, deterministic 50-row pages and rejection of arbitrary SQL. The full WordPress `wpdb` implementation remains unfinished, including consistent multi-page loading and fallback behavior; do not enable the translator in live WordPress. See [autoload options D1 conformance](docs/reports/2026-11-06-microwp-d1-autoload-options-conformance.md).
+
 ## Private Durable Object CPU evidence and WordPress options conformance
 
 The protected Free SQLite Durable Object CPU canary now correlates gateway and Durable Object execution using an opaque per-request identifier. The remote verifier accepts only the dedicated HTTPS origin, bounded responses and fixed CPU/PHP/WordPress installer tasks, and **never reports client wall time as CPU or memory evidence**. The updated canary code is **not deployed**; remote CPU and memory are still unverified. See [remote evidence readiness](docs/reports/2026-11-06-microwp-free-do-remote-evidence-readiness.md).

@@ -2,6 +2,12 @@
 
 All notable user-visible changes to microWP are documented here.
 
+## Unreleased — Native D1 structured autoload options SELECT prototype (2026-11-06)
+
+- Extend the private D1 SELECT protocol with one strictly bounded, scalar `whereIn` predicate (1–8 distinct non-null values) and prepared bindings, preserving server-owned site filtering, allowlisted identifiers, and the existing 20-binding limit.
+- Add a fail-closed WordPress 7.1.4 `wp_load_alloptions()` query translator for the official autoload values, deterministic 50-row pages, and an intentionally restricted original SQL grammar. Test against the pinned WordPress source and real SQLite using site-scoped prepared statements.
+- Do not install the adapter, execute remote D1 queries, enable live WordPress, or infer full `wpdb` readiness. Multi-page snapshot consistency and complete autoload fallback are outstanding.
+
 ## Unreleased — Private Free DO remote evidence hardening and D1 options conformance (2026-11-06)
 
 - Strengthen the isolated Free CPU/PHP/WordPress Durable Object canary with per-request correlation IDs across gateway/DO, strict fixed tasks, bounded responses and no false CPU/memory claims. The new remote validator intentionally requires the matching updated canary protocol; no remote deploy or secret provisioning occurred.

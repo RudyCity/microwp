@@ -17,6 +17,14 @@ SELECT example:
 {"version":1,"id":"req_123","op":"select","table":"posts","columns":["id","title"],"where":[{"column":"slug","value":"hello"}],"orderBy":{"column":"id","direction":"asc"},"limit":25,"offset":0}
 ```
 
+Bounded SELECT `IN` example (experimental, still private):
+
+```json
+{"version":1,"id":"req_123_in","op":"select","table":"wp_options","columns":["option_name","option_value"],"whereIn":{"column":"autoload","values":["yes","on","auto-on","auto"]},"orderBy":{"column":"option_name","direction":"asc"},"limit":50,"offset":0}
+```
+
+The optional `whereIn` permits one 1–8-element, scalar-only, non-null, distinct value list. It is **SELECT-only**, cannot duplicate an equality predicate or target a host-owned tenant scope, and its column must exist in the trusted table policy's `filter` allowlist. All values are SQL `?` bindings; no raw SQL fragments or `IN` source expressions are accepted. The maximum possible v1 SELECT binding count is 19 (8 equality predicates + 8 IN values + scope + LIMIT/OFFSET), under the cap of 20.
+
 INSERT example:
 
 ```json
@@ -63,8 +71,8 @@ Responses:
   SELECT/UPDATE/DELETE and injected into each INSERT. Client cannot supply the same column to
   overwrite the scope. This is a minimum site/tenant isolation guard, not a
   substitute for per-request authorization.
-- Limits: input 16 KiB, output 64 KiB, scalar UTF-8 2 KiB, 16 columns, 8 WHERE
-  predicates, 20 bindings, SELECT 1–50 rows, OFFSET 0–1000.
+- Limits: input 16 KiB, output 64 KiB, scalar UTF-8 2 KiB, 16 columns, 8 equality WHERE
+  predicates, one 1–8-value IN predicate, 20 bindings, SELECT 1–50 rows, OFFSET 0–1000.
 - D1 errors are returned as generic codes; no SQL/parameter contents are logged
   or echoed. PHP throws a generic exception on errors.
 - `worker.ts` offers only a DI function, not a `fetch` handler. **Never mount
@@ -100,3 +108,7 @@ The host may configure `update: ["title"]`, `delete: true`, `identityColumn: "id
 The returned `changes <= 1` check is only a **post-execution diagnostic**, not an atomic rollback. If the trusted schema does not actually enforce uniqueness, an invalid mutation could modify more than one row before detection. This requires a verified PRIMARY KEY/UNIQUE constraint and transaction-level tests before activation. This code does not implement full WordPress `wpdb` semantics, transactions, MySQL compatibility, plugin queries, automated migration or replay-safe mutation IDs. The existing PHP `src/php/d1-wpdb/db.php` is still strictly read-only and is not installed. Production remains **NO-GO**.
 
 See [experimental mutation safety report](../../docs/reports/2026-11-06-microwp-d1-experimental-mutation-safety.md).
+
+## Pinned WordPress autoload query prototype (2026-11-06)
+
+The private query translator at [options-autoload.ts](../d1-wpdb-conformance/options-autoload.ts) recognizes the concrete autoload query in the pinned `wp-includes/option.php`, restricted to the four official autoload values and subsets. It produces deterministic bounded pages of 50 D1 rows and requires a trusted site-owned table mapping, with all SQL values bound. The prototype **cannot be used as a complete WordPress alloptions loader** until full pagination, snapshot consistency, fallback semantics, and oversized result behavior are verified. No production WordPress driver is installed. See [autoload conformance report](../../../docs/reports/2026-11-06-microwp-d1-autoload-options-conformance.md).

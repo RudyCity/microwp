@@ -55,6 +55,13 @@ async function execute(request: D1ProtocolRequest, db: D1ProtocolDb, policy: D1P
         bindings.push(pred.value);
       }
     }
+    if (request.whereIn) {
+      allowed(request.whereIn.column, permission.filter);
+      if (permission.scope?.column === request.whereIn.column) deny();
+      where.push(quote(request.whereIn.column) + " IN (" +
+        request.whereIn.values.map(() => "?").join(", ") + ")");
+      bindings.push(...request.whereIn.values);
+    }
     if (permission.scope) {
       where.push(quote(permission.scope.column) + " = ?");
       bindings.push(permission.scope.value);

@@ -9,6 +9,7 @@ export const MAX_RESPONSE_BYTES = 64 * 1024;
 export const MAX_VALUE_BYTES = 2048;
 export const MAX_COLUMNS = 16;
 export const MAX_PREDICATES = 8;
+export const MAX_IN_VALUES = 8;
 export const MAX_BINDINGS = 20;
 export const MAX_ROWS = 50;
 export const MAX_OFFSET = 1000;
@@ -53,6 +54,8 @@ export interface SelectRequest {
   table: string;
   columns: string[];
   where?: Equality[];
+  /** One bounded, scalar-only IN predicate; null and empty lists are forbidden. */
+  whereIn?: { column: string; values: (string | number)[] };
   orderBy?: { column: string; direction: "asc" | "desc" };
   limit?: number;
   offset?: number;
@@ -144,13 +147,29 @@ export function decodeD1Request(message: string): D1ProtocolRequest {
   if (typeof payload.id !== "string" || !idPattern.test(payload.id)) throw new D1ProtocolError("BAD_REQUEST");
   if (payload.op === "select") {
     keys(payload, ["version", "id", "op", "table", "columns"],
-      ["version", "id", "op", "table", "columns", "where", "orderBy", "limit", "offset"]);
+      ["version", "id", "op", "table", "columns", "where", "whereIn", "orderBy", "limit", "offset"]);
     const table = identifier(payload.table);
     if (!Array.isArray(payload.columns) || payload.columns.length < 1 ||
       payload.columns.length > MAX_COLUMNS) throw new D1ProtocolError("BAD_REQUEST");
     const columns = payload.columns.map(identifier);
     if (new Set(columns).size !== columns.length) throw new D1ProtocolError("BAD_REQUEST");
     const where = payload.where === undefined ? undefined : predicates(payload.where);
+    let whereIn: SelectRequest["whereIn"];
+    if (payload.whereIn !== undefined) {
+      if (!record(payload.whereIn)) throw new D1ProtocolError("BAD_REQUEST");
+      keys(payload.whereIn, ["column", "values"], ["column", "values"]);
+      const column = identifier(payload.whereIn.column);
+      if (!Array.isArray(payload.whereIn.values) ||
+          payload.whereIn.values.length < 1 ||
+          payload.whereIn.values.length > MAX_IN_VALUES ||
+          where?.some((entry) => entry.column === column)) {
+        throw new D1ProtocolError("BAD_REQUEST");
+      }
+      const values = payload.whereIn.values.map(checkValue);
+      if (values.some((value) => value === null) ||
+          new Set(values).size !== values.length) throw new D1ProtocolError("BAD_REQUEST");
+      whereIn = { column, values: values as (string | number)[] };
+    }
     let orderBy: SelectRequest["orderBy"];
     if (payload.orderBy !== undefined) {
       if (!record(payload.orderBy)) throw new D1ProtocolError("BAD_REQUEST");
@@ -162,7 +181,7 @@ export function decodeD1Request(message: string): D1ProtocolRequest {
     }
     const limit = payload.limit === undefined ? 25 : boundedInteger(payload.limit, 1, MAX_ROWS);
     const offset = payload.offset === undefined ? 0 : boundedInteger(payload.offset, 0, MAX_OFFSET);
-    return { version: 1, id: payload.id, op: "select", table, columns, where, orderBy, limit, offset };
+    return { version: 1, id: payload.id, op: "select", table, columns, where, whereIn, orderBy, limit, offset };
   }
   if (payload.op === "insert") {
     keys(payload, ["version", "id", "op", "table", "values"],
