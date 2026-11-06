@@ -2,12 +2,19 @@
 
 All notable user-visible changes to microWP are documented here.
 
+## Unreleased — Hybrid WordPress object cache and Transients API parity (2026-11-06)
+
+- Preserve native WordPress database-backed ordinary/site transient semantics while `microwp_public` remains persisted only in the private Worker cache.
+- Update the pinned WordPress cache initializer with `wp_using_ext_object_cache(false)` and build a read-only core-cache overlay at PHP-WASM filesystem mount. The `object-cache.php` drop-in uses `require_once` for that single source; the official ZIP stays unchanged.
+- Add a fixed, authenticated localhost-only REST test plugin and test ordinary/site transients across independent PHP requests, updates, TTL expiry, delete, and Durable Object restart. Anonymous access is denied.
+- Local unit, real WordPress editorial, original no-cache WordPress and staging security tests pass. No deployment, billing changes or public WordPress routes. Production remains NO-GO until remote Free CPU/memory and native D1 `wpdb` are verified.
+
 ## Unreleased — WordPress editorial with opt-in Worker cache and post-commit invalidation (2026-11-06)
 
 - Full real WordPress PHP-WASM D1/R2 REST editorial E2E with cache enabled: install/login, publish and update post, create/rename category and attach to post, edit blog title, upload/delete PNG, restart and verify persistence.
 - Invalidate only `microwp_public` cache keys after D1 snapshot + R2 media journal commit on mutating requests; preserve other groups and report Service Binding failure without claiming success.
 - Local-only diagnostic proves seed→hit→miss around WordPress REST writes, and additional unit/security gates plus CI E2E cover this behavior.
-- No live WordPress configuration or billing changes. Transients API compatibility and actual Free Cloudflare DO CPU/memory evidence remain open production blockers.
+- No live WordPress configuration or billing changes. Broader plugin compatibility and actual Free Cloudflare DO CPU/memory evidence remain open production blockers.
 
 ## Unreleased — Opt-in WordPress PHP object-cache Service Binding bridge (2026-11-06)
 
@@ -15,7 +22,7 @@ All notable user-visible changes to microWP are documented here.
 - Add tightly scoped PHP-WASM `post_message_to_js` bridge to the existing internal cache Worker for the `microwp_public` immutable revisioned keys only; refuse arbitrary site identity, auth/user cache groups and arbitrary PHP/SQL.
 - Prove real PHP-WASM WordPress installer, cache hits across PHP requests, and `wp_cache_flush_group` invalidation inside a local Durable Object plus Service Binding.
 - Explicitly detach/dispose Cloudflare RPC object results and stubs; add isolated lifecycle tests and CI local E2E.
-- Default staging remains unchanged, and cache is **not** enabled for public WordPress. Transients and editorial/plugin compatibility plus actual Free CPU remain blocking.
+- Default staging remains unchanged, and cache is **not** enabled for public WordPress. Native transient parity now passes locally; broader plugin compatibility and actual Free CPU remain blocking.
 
 ## Unreleased — Dedicated Redis-like Worker cache (2026-11-06)
 

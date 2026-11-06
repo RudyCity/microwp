@@ -2,7 +2,7 @@ import { PHP, loadPHPRuntime } from "@php-wasm/universal";
 import * as loader from "../../experiments/generated/php-loader.js";
 import phpWasmModule from "../../node_modules/@php-wasm/web-8-4/asyncify/8_4_27/php_8_4.wasm";
 import wordpressArchive from "../../generated/wordpress-php.bin";
-import { mountWordPress,type MountStats } from "./zip-files";
+import { mountWordPress,indexZip,inflateEntry,type MountStats } from "./zip-files";
 import { wordpressConfig, mayServePreview } from "./config";
 import {flushUploads,hydrateUploads,finalizeUploadDeletes} from "./uploads";
 import {D1_BRIDGE_READINESS_MESSAGE,handleD1BridgeReadinessMessage} from "./d1-message-bridge";
@@ -33,15 +33,21 @@ export async function getPHP(origin:string, env:Env): Promise<PHP> {
     });
     if(staging)console.info("microWP isolated canary: WASM_READY_MS",Math.round(performance.now()-start));
     const php = new PHP(runtime);
-    stats=await mountWordPress(php,new Uint8Array(wordpressArchive));
+    const archive=new Uint8Array(wordpressArchive);
+    const hybridEnabled=env.MICROWP_WORKER_CACHE_ENABLED==="yes"&&!!env.REDIS_WORKER;
+    let hybrid:ReturnType<typeof buildWorkerObjectCacheDropin>|undefined;
+    if(hybridEnabled){
+      const original=indexZip(archive).find(entry=>entry.name==="wp-includes/cache.php");
+      if(!original)throw Error("Pinned WordPress cache.php not found");
+      hybrid=buildWorkerObjectCacheDropin(new TextDecoder().decode(inflateEntry(archive,original)));
+    }
+    stats=await mountWordPress(php,archive,hybrid?new TextEncoder().encode(hybrid.coreCachePhp):undefined);
     if(staging)console.info("microWP isolated canary: ZIP_READY_MS",Math.round(performance.now()-start));
     php.mkdir("/private");
     php.writeFile("/www/wp-config.php",wordpressConfig(origin,env));
-    if(env.MICROWP_WORKER_CACHE_ENABLED==="yes"&&env.REDIS_WORKER){
-      // Explicit private opt-in only. Core WordPress cache API stays pinned and
-      // all existing non-opted groups retain request-local WP cache semantics.
-      const coreCache=php.readFileAsText("/www/wp-includes/cache.php");
-      php.writeFile("/www/wp-content/object-cache.php",buildWorkerObjectCacheDropin(coreCache));
+    if(hybrid){
+      // The pinned cache.php overlay stays read-only after mounting.
+      php.writeFile("/www/wp-content/object-cache.php",hybrid.objectCacheDropinPhp);
     }
     if(staging)console.info("microWP isolated canary: CONFIG_READY_MS",Math.round(performance.now()-start));
     return php;

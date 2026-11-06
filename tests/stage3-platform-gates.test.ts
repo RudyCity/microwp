@@ -78,7 +78,7 @@ describe("Stage-3 platform GO/NO-GO isolated guards", () => {
     const client = src("src/php/d1-protocol/client.php");
     expect(phpConfig).toContain("DB_PATH");
     expect(phpConfig).toContain("/private/microwp.sqlite");
-    expect(native).toContain('mountWordPress(php,new Uint8Array(wordpressArchive))');
+    expect(native).toContain('mountWordPress(php,archive,hybrid?new TextEncoder().encode(hybrid.coreCachePhp):undefined)');
     expect(native).toContain('readNativeDB()');
     expect(durable).toContain("loadD1SQLite(this.env.DB)");
     expect(durable).toContain("saveD1SQLite(this.env.DB,snapshot");

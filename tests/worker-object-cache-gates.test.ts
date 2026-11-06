@@ -19,7 +19,7 @@ describe("WordPress object-cache opt-in fail-closed gates",()=>{
  });
  test("runtime only mounts drop-in with both explicit opt-in and binding",()=>{
   const native=read("src/php/native.ts");
-  expect(native).toContain('env.MICROWP_WORKER_CACHE_ENABLED==="yes"&&env.REDIS_WORKER');
+  expect(native).toContain('env.MICROWP_WORKER_CACHE_ENABLED==="yes"&&!!env.REDIS_WORKER');
   expect(native).toContain('php.writeFile("/www/wp-content/object-cache.php"');
   expect(native).toContain('handleObjectCacheMessage(message,env.REDIS_WORKER!,"microwp_single_site")');
  });

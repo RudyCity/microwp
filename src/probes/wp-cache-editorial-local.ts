@@ -3,10 +3,37 @@
  * A fixed-key cache diagnostic lets tests prove post-commit invalidation.
  * Never deploy or expose via external DNS.
  */
-import originalWorker,{MicroWPSite} from "../index-durable";
+import originalWorker,{MicroWPSite as BaseMicroWPSite} from "../index-durable";
+import {getPHP} from "../php/native";
+import {WORDPRESS_TRANSIENT_PROOF_PHP} from "./wp-transients-local-plugin";
 import {WorkerRedisClient} from "../worker-cache/client";
 import type {Env,ExecutionCtx} from "../types";
-export {MicroWPSite};
+/** Inject one fixed authenticated transient test route in LOCAL Workerd only. */
+export class MicroWPSite extends BaseMicroWPSite {
+ private localPluginReady?:Promise<void>;
+ override async fetch(request:Request):Promise<Response>{
+  const url=new URL(request.url);
+  const env=this.env as Env & {MICROWP_LOCAL_TRANSIENT_PROOF?:string};
+  // The base DO must restore its persisted WordPress auth secret and D1 first.
+  // Preparing PHP before super.fetch() would construct wp-config with a
+  // different auth secret and break login across Durable Object restarts.
+  const response=await super.fetch(request);
+  if(url.hostname==="127.0.0.1"&&env.MICROWP_LOCAL_TRANSIENT_PROOF==="yes"){
+   if(!this.localPluginReady)this.localPluginReady=(async()=>{
+    const php=await getPHP(url.origin,env);
+    if(!php.fileExists("/www/wp-content/mu-plugins"))
+     php.mkdir("/www/wp-content/mu-plugins");
+    php.writeFile("/www/wp-content/mu-plugins/microwp-transient-local-only.php",
+     WORDPRESS_TRANSIENT_PROOF_PHP);
+   })();
+   try{await this.localPluginReady}
+   catch{
+    return Response.json({error:"LOCAL_TRANSIENT_PROOF_UNAVAILABLE"},{status:503});
+   }
+  }
+  return response;
+ }
+}
 interface LocalEnv extends Env {SITE_DO:DurableObjectNamespace<MicroWPSite>}
 const FIXED_KEY="home:v0123456789abcdef";
 const FIXED_VALUE="verified-public-data";

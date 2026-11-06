@@ -6,7 +6,7 @@ describe("local WordPress with Worker cache editorial proof isolation",()=>{
   const conf=read("wrangler.wp-cache-editorial-local.jsonc");
   expect(conf.name).toContain("local-only");
   expect(conf.workers_dev).toBe(false);
-  expect(conf.vars).toEqual({MICROWP_STORAGE_DRIVER:"d1",MICROWP_WORKER_CACHE_ENABLED:"yes"});
+  expect(conf.vars).toEqual({MICROWP_STORAGE_DRIVER:"d1",MICROWP_WORKER_CACHE_ENABLED:"yes",MICROWP_LOCAL_TRANSIENT_PROOF:"yes"});
   expect(conf.limits).toBeUndefined();
   expect(conf.services).toEqual([{binding:"REDIS_WORKER",service:"microwp-worker-cache"}]);
  });

@@ -52,7 +52,9 @@ export interface MountStats {files:number;bytes:number;elapsedMs:number;loadedFi
  * Small metadata nodes exist eagerly; PHP and WordPress template/CSS bytes inflate on first FS.read.
  * The archive is immutable; code writes must never modify installed WP sources.
  */
-export async function mountWordPress(php:PHP,archive:Uint8Array):Promise<MountStats> {
+export async function mountWordPress(
+ php:PHP,archive:Uint8Array,readonlyCoreCacheOverride?:Uint8Array
+):Promise<MountStats> {
   const t=Date.now();
   const entries=indexZip(archive);
   const stats:MountStats={files:entries.length,bytes:entries.reduce((n,e)=>n+e.size,0),elapsedMs:0,loadedFiles:0,loadedBytes:0};
@@ -67,6 +69,16 @@ export async function mountWordPress(php:PHP,archive:Uint8Array):Promise<MountSt
       for(const segment of segments){
         dir+="/"+segment;
         if(!directories.has(dir)) {FS.mkdir(dir);directories.add(dir);}
+      }
+      // The single trusted opt-in overlay is created read-only at mount time.
+      // Runtime PHP and plugins must not rewrite WordPress core source files.
+      if(entry.name==="wp-includes/cache.php"&&readonlyCoreCacheOverride){
+        if(readonlyCoreCacheOverride.byteLength>MAX_FILE)
+          throw new Error("Oversized pinned cache.php override");
+        FS.createDataFile(dir,filename,readonlyCoreCacheOverride,true,false,false);
+        stats.loadedFiles++;
+        stats.loadedBytes+=readonlyCoreCacheOverride.byteLength;
+        continue;
       }
       FS.createDataFile(dir,filename,new Uint8Array(),true,false,false);
       const node=FS.lookupPath(dir+"/"+filename).node as any;

@@ -1,57 +1,66 @@
-# microWP — WordPress editorial dengan cache Worker + invalidasi pascakomit
+# microWP: Real WordPress editorial with internal Worker cache and post-commit invalidation
 
-Tanggal: 6 November 2026. Status: **E2E Workerd lokal PASS; belum diaktifkan di Cloudflare WordPress staging**.
+Date: 2026-11-06. Status: **local Workerd E2E PASS; deployed WordPress staging unchanged; production NO-GO**.
 
-## Tujuan
+## Goal
 
-Mempertahankan **WordPress asli PHP-WASM di Durable Object**, bukan melakukan ekspor situs ke HTML statis. Cache berada sepenuhnya di Worker terpisah melalui Service Binding ke Durable Object cache internal, tanpa Redis eksternal, langganan, atau perubahan billing Cloudflare.
+Run real WordPress PHP-WASM on Cloudflare Workers/Durable Objects with a private Service Binding to a dedicated internal Redis-like cache Worker. Keep WordPress's authoritative data in its current SQLite-backed D1 snapshot path, media in R2, and avoid all external Redis products or paid Cloudflare services. This is not static HTML export.
 
-## Perubahan
+## Implemented behavior
 
-1. `src/php/worker-cache-invalidation.ts` berisi kebijakan operasi tulis yang memerlukan flush (POST/PUT/PATCH/DELETE). Operasi baca GET/HEAD/OPTIONS, konfigurasi tanpa flag `MICROWP_WORKER_CACHE_ENABLED=yes`, dan tanpa binding selalu skip.
-2. `src/index-durable.ts` memanggil `invalidatePublicCacheAfterCommit()` **setelah** snapshot WordPress tersimpan di D1 dan jurnal penghapusan R2 selesai. Hanya grup `microwp_public` yang dibersihkan; grup auth, users, posts internal, dan metadata lainnya tidak disentuh. Kegagalan RPC menghasilkan hasil `unavailable` dan warning, **tidak dipalsukan sebagai flush sukses**.
-3. `wrangler.wp-cache-editorial-local.jsonc` adalah **konfigurasi lokal terpisah** dengan database placeholder `00000000-0000-4000-8000-000000000007`, bucket media lokal berbeda, WordPress D1 Durable Object, binding `REDIS_WORKER`, dan flag opt-in. `workers_dev:false`, tidak ada route publik, tidak memiliki `limits.cpu_ms`.
-4. `src/probes/wp-cache-editorial-local.ts` menambahkan dua endpoint pengujian *loopback-only* dengan **key dan nilai tetap** untuk membuktikan hit→miss, bukan operasi cache arbitrer. Menggunakan runtime WordPress yang sama dengan staging untuk rute WordPress umum. **Tidak boleh di-deploy**.
-5. `scripts/wp-cache-editorial-e2e.sh` menjalankan kedua Worker lewat Wrangler lokal, migrasi D1 dan R2 lokal, install WordPress 7.1.4, login, editorial REST, media, invalidasi, restart, pemeriksaan keberlanjutan data, dan jurnal. File autentikasi E2E dipisahkan di folder `.wrangler/` yang diabaikan Git.
-6. `scripts/wp-cache-editorial-rest.ts` menguji kategori dibuat/diubah, artikel ditautkan ke kategori, judul situs diedit melalui authenticated REST API, lalu memverifikasi hasil segar dan persistensi setelah restart.
-7. `scripts/wp-cache-editorial-invalidation.ts` menguji key publik benar-benar **hit sebelum** operasi tulis dan **miss sesudahnya**. Unit test menguji kegagalan RPC, ruang lingkup grup, dan gerbang opt-in.
+1. `src/php/worker-cache-invalidation.ts` enforces an explicit mutation-method policy (POST/PUT/PATCH/DELETE). GET/HEAD/OPTIONS and configurations without both opt-in and Service Binding skip invalidation.
+2. `src/index-durable.ts` clears only derived `microwp_public` keys **after** the WordPress SQLite snapshot and R2 deletion journal have successfully committed. Any cache RPC failure is reported as unavailable, not represented as successful invalidation.
+3. `wrangler.wp-cache-editorial-local.jsonc` is an isolated, local-only WordPress Durable Object configuration. It uses placeholder D1 ID `00000000-0000-4000-8000-000000000007`, a separate local R2 bucket, trusted `REDIS_WORKER` binding, and explicit object-cache opt-in. It has `workers_dev:false`, no public routes and no paid CPU setting.
+4. `src/probes/wp-cache-editorial-local.ts` provides fixed-value, **loopback-only** cache seed/check diagnostics and a fixed WordPress Transients API proof plugin for local E2E. These are not in the deployed WordPress Worker.
+5. `scripts/wp-cache-editorial-e2e.sh` runs two independent local Workers, D1 migrations and media fixtures, real WordPress installation/login/REST updates, cache seed→hit→miss, restart preservation, media deletion and D1 journal reconciliation.
+6. `scripts/wp-cache-editorial-rest.ts` covers WordPress post/category relations and site title updates, using real authenticated WordPress REST nonces.
+7. `scripts/wp-cache-transients-local-e2e.ts` covers the native WordPress Transients API with an authenticated local-only PHP plugin: set/get/update, short TTL expiry, delete and persistence after restart for both ordinary and site transients.
 
-## Hasil yang benar-benar teramati
+## Actual Workerd results
 
-| Test lokal Workerd | Hasil |
+| Local verification | Result |
 | --- | --- |
-| WordPress installer dan login asli dengan cache aktif | PASS |
-| REST buat/edit artikel | PASS |
-| REST buat/edit kategori dan assign ke artikel | PASS |
-| Ubah opsi publik `blogname` lewat REST, kemudian render HTML terbaru | PASS |
-| Media PNG WordPress disimpan/diambil/dihapus via R2 lokal | PASS |
-| Cache key tetap: seed → hit → POST editorial → miss | PASS |
-| Cache key tetap: seed → edit kategori/opsi → miss | PASS |
-| Cache key tetap: seed → POST media → miss | PASS |
-| Setelah restart: sesi admin, artikel, relasi kategori, opsi judul dan R2 | PASS |
-| Jurnal media delete D1 setelah operasi | 0 pending |
-| Perbaikan regresi WordPress biasa tanpa opt-in | Masih memerlukan CI/regresi final |
-| CPU/memori **Cloudflare Free asli**, bukan Workerd lokal | **Belum terbukti** |
+| Real WordPress installer and administrator login with the cache enabled | PASS |
+| REST publish/edit post, create/rename category, associate category with post | PASS |
+| Update public site-title option; see updated rendered WordPress HTML | PASS |
+| WordPress PNG media upload, R2 GET and delete | PASS |
+| Cache seed → hit → post/category/option/media write → miss | PASS |
+| Post-restart: WordPress administrator session, posts, category relations and site title | PASS |
+| Post-restart: original R2 media and D1 media journal with zero pending entries | PASS |
+| Native WordPress transient and site-transient cross-request persistence | PASS |
+| Transient update, one-second expiration, deletion and post-restart persistence | PASS |
+| Transient test route requires administrator authentication | PASS |
+| Original WordPress installation with the external cache disabled | PASS |
+| Production staging safety smoke | 10/10 PASS |
+| Real Cloudflare Free DO CPU/memory | **NOT VERIFIED** |
 
-Semua data E2E dibuat pada `.wrangler/wp-cache-editorial-e2e-state`; sumber daya Cloudflare staging dan Worker cache yang sudah di-deploy **tidak dimutasi**. Dua percobaan awal terhenti pada harness (redireksi stdout Windows, kemudian basename fixture, kemudian REST nonce setelah restart), diperbaiki dan diulang sampai **semua pemeriksaan sukses**. Itu bukan kegagalan WordPress PHP-WASM.
+All data was isolated under ignored local `.wrangler/` directories. Existing Cloudflare staging, D1/R2 remote resources, public WordPress routes, billing and account settings were not changed. The local PHP proof uses **actual WordPress**, not an HTML export or a mocked WordPress cache.
 
-## Batasan produksi dan ketepatan data
+## Hybrid transient compatibility correction
 
-- **Transient API masih blocker.** WordPress mengatur `wp_using_ext_object_cache(true)` saat drop-in aktif, sedangkan hanya grup `microwp_public` yang mempunyai persistensi antar-request. Akibatnya transient biasa mungkin tidak berperilaku sama dengan instalasi WordPress default. Jangan aktifkan staging sebelum kompatibilitas Transients API dibuktikan atau diperbaiki.
-- Flush ini **best-effort**, bukan transaksi bersama D1+Worker cache. Jika Worker RPC gagal sesudah D1 commit, WordPress tetap mengembalikan hasil asli dan cache mungkin bertahan sampai TTL maksimum **300 detik**. Karena itu hanya key **immutable, revision-derived** yang sah untuk remote cache. Jangan cache public content dengan key mutable yang digunakan ulang. Pengukuran CPU tambahan diperlukan agar flush saat POST tidak memakan anggaran Free.
-- WordPress sendiri **belum mengalihkan grup inti** seperti `posts`, `options`, `transient`, `users`, `auth` ke cache Worker. E2E membuktikan integritas dan mekanisme, **bukan peningkatan kecepatan WordPress dalam kondisi produksi**.
-- Rute invalidasi hanya POST/PUT/PATCH/DELETE, tidak menjamin mencakup plugin yang secara buruk melakukan mutasi pada GET. Rute admin publik tetap tertutup.
-- Belum ada benchmark CPU `cpuTime` asli Cloudflare pada invocation DO Free, tidak ada bukti peak isolate heap di bawah 128 MiB; status produksi tetap **NO-GO**. Canary sebelumnya masih memerlukan secret yang dipasang operator melalui jalur resmi (tidak boleh dibypass).
-- Tidak ada cache eksternal/Upstash, Paid Workers, paid CPU limit, migrasi data remote, deploy Wordpress, atau pembukaan DNS.
+The earlier drop-in only persisted `microwp_public`, but WordPress initially detected it as a universal external object cache; this redirected the WordPress Transients API to request-local `transient` and `site-transient` groups.
 
-## Cara menguji
+The new hybrid mode still uses the internal cache Worker for `microwp_public`, but ensures `wp_using_ext_object_cache(false)` is set by the pinned WordPress object-cache initializer. As a result, the normal WordPress Transients API uses **database-backed options/site-options**, which survive requests and Durable Object restarts. The pinned `wp-includes/cache.php` has one minimal in-memory, **read-only** mount-time overlay in opt-in mode, and `object-cache.php` includes the same source through `require_once` to prevent duplicate declarations. This is not an on-disk change to the original WordPress ZIP.
+
+The official API defines TTL as an upper bound; an early eviction is permitted, but this local proof additionally verifies the expected durable DB fallback. See [hybrid Transients API parity research](2026-11-06-microwp-wordpress-transients-hybrid-parity.md).
+
+## Limitations and release gates
+
+- Invalidation is **best-effort**, not an atomic D1/cache transaction. If the Service Binding fails after the D1 commit, the caller may continue with an old cache entry until expiration. **Only immutable content-revision-derived keys may be cached remotely**, with short TTL and no private or session data.
+- WordPress's `wp_using_ext_object_cache()` deliberately reports false for this partial, hybrid cache. WordPress plugins assuming every object-cache group is persistent need independent evaluation. The local proof covers native Transients API, not all plugins or multisite configurations.
+- Core WordPress groups such as `posts`, `options`, `users`, `auth`, `transient` and `site-transient` are **not** sent to the Worker cache.
+- The production WordPress native D1 `wpdb` adapter is still incomplete; the current path stores SQLite snapshots as D1-backed state. A local editorial E2E is not a real Free Cloudflare CPU or 128 MB memory benchmark.
+- Test the failure/recovery of the Service Binding and plugin-specific invalidation before enabling even private WordPress staging. Never deploy the local-only proof Worker or enable paid CPU.
+
+## Reproduction
 
 ```bash
 bun run check
-bun run wp-cache:editorial-build  # dry-run
-bun run wp-cache:editorial-e2e    # Workerd lokal D1/R2 + cache Worker
-bun run e2e:local                # WordPress lama tanpa cache
-bun run staging:smoke            # staging public gate unchanged
+bun run wp-object-cache:e2e
+bun run wp-cache:editorial-build      # dry-run
+bun run wp-cache:editorial-e2e        # real local WordPress + Transients + D1/R2
+bun run e2e:local                     # default WordPress regression
+bun run staging:smoke                 # deployed staging stays locked
 ```
 
-Tahap berikut yang diperlukan **sebelum aktivasi**: buktikan/pulihkan Transients API across requests, test rollback dan kegagalan Service Binding, periksa semua hook term/post/options/plugin yang berpotensi menulis saat GET, dan lakukan real Cloudflare Free CPU/RAM measurement dengan secret canary resmi.
+**Production status remains NO-GO.** A successful local WordPress installer or cache test must never be presented as proof that actual Free-tier Cloudflare DO CPU and memory budgets have been met.

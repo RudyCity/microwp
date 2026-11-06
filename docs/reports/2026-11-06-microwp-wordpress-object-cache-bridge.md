@@ -6,7 +6,7 @@ Date: 2026-11-06. Status: **local opt-in implementation and tests complete; prod
 
 The existing dedicated `microwp-worker-cache` Worker and its Durable Object provide a bounded, volatile Redis-*like* key/value cache. This stage connects WordPress's actual `wp_cache_*` API (PHP 8.4.27 WASM) to that Worker over **PHP `post_message_to_js` → JavaScript → Service Binding RPC → Durable Object**.
 
-WordPress's external cache drop-in is officially loaded from `wp-content/object-cache.php`. WordPress 7.1.4 core `wp-includes/cache.php` is kept verbatim **except for the `wp_cache_init()` object constructor**, assembled on demand from the pinned WordPress ZIP when the runtime is explicitly opted in. It remains GPL-2.0-or-later WordPress-derived code. See https://developer.wordpress.org/reference/classes/wp_object_cache/.
+WordPress's external cache drop-in is officially loaded from `wp-content/object-cache.php`. The opt-in build creates a read-only mount-time overlay of WordPress 7.1.4 `wp-includes/cache.php`, modifying only the `wp_cache_init()` class constructor and the external-cache flag. The drop-in `require_once`-loads the same core file; the official WordPress archive is unchanged. It remains GPL-2.0-or-later WordPress-derived code. See https://developer.wordpress.org/reference/classes/wp_object_cache/.
 
 ## Code and controls
 
@@ -34,7 +34,7 @@ WordPress's external cache drop-in is officially loaded from `wp-content/object-
 ## Significant correctness caveats
 
 - **Not a general Redis Object Cache plugin replacement.** `wp_cache_*` is compatible locally because the pinned WordPress class/API remains intact. Only the explicitly named `microwp_public` group has remote persistence; user-specific, auth and other core groups remain in the PHP request cache.
-- WordPress treats the presence of an external object-cache drop-in as a persistent object cache; this affects **Transients API** behavior. An expiring transient may disappear earlier than its TTL or become request-local if its group is not remote. This must be studied with full WordPress installation/login/post/edit/REST/plugin compatibility tests before enabling for any real site.
+- The hybrid initializer now sets `wp_using_ext_object_cache(false)` because only `microwp_public` persists remotely. Native ordinary/site WordPress transients use the authoritative database; set/get/update/TTL/delete/restart tests pass in local Workerd. Broader plugin behavior still requires validation.
 - When remote writes or invalidation fail, the PHP class falls back to local request cache and does not stop WordPress rendering. Therefore remote entries **must be immutable and versioned**, and callers must derive the revision from authoritative content data, not merely a mutable string. Short TTL reduces but does not eliminate unsafe stale content if callers reuse an old key.
 - `wp_cache_incr/decr` are only request-local in the opt-in group, with best-effort remote deletion. There is **no** claim of atomic distributed WordPress counters.
 - The Worker-only cache may be evicted, and every cache miss must be reconstructible from D1 or authoritative WordPress data. Do not store secrets, sessions, serialized objects, drafts, private posts or uncommitted data in it.
@@ -59,3 +59,7 @@ Only after a later, independent WordPress editorial E2E with the cache enabled, 
 ## Independent internal cache Worker deployment (2026-11-06)
 
 After the code and Linux CI verification succeeded, only the dedicated `microwp-worker-cache` Worker was updated to version `8bf61c9a-01b4-4234-b5a6-c4fe30f2da38` with explicit RPC result/stub disposal. Wrangler confirmed **No targets deployed** and no public URL/route. No PHP local-proof Worker was deployed. The WordPress staging Worker, its D1 and R2 bindings, DNS, billing and public gate remained unchanged. Live Free-tier WordPress CPU and production object-cache semantics are **still unverified**.
+
+## Follow-up: native database transient parity verified locally
+
+A minimal read-only pinned-core cache initializer overlay now preserves WordPress database-backed ordinary and site transients while keeping `microwp_public` on the internal Worker Service Binding. The pinned core is loaded once via `require_once`, avoiding duplicate function declarations. Authenticated local WordPress tests cover transient update, expiry, deletion and Durable Object restart, alongside the existing editorial and cache invalidation E2E. See [hybrid transient parity results](2026-11-06-microwp-wordpress-transients-hybrid-parity.md). Production remains NO-GO pending actual Cloudflare Free CPU/memory, native D1 `wpdb`, and broader plugin safety.

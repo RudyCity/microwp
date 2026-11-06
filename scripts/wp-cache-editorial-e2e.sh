@@ -59,6 +59,17 @@ start_site(){
 start_site
 curl --fail --silent --max-time 12 "$MICROWP_E2E_URL/wp-content/themes/twentytwentyfive/style.css" | grep -q 'microwp-cache-editorial-marker'
 bun scripts/e2e-wordpress.ts install
+# Database-backed WordPress transient and site-transient behavior with the
+# hybrid object-cache drop-in (public Worker cache remains enabled).
+bun scripts/wp-cache-transients-local-e2e.ts set
+bun scripts/wp-cache-transients-local-e2e.ts get
+bun scripts/wp-cache-transients-local-e2e.ts update
+bun scripts/wp-cache-transients-local-e2e.ts verify-update
+bun scripts/wp-cache-transients-local-e2e.ts expire-set
+sleep 3
+bun scripts/wp-cache-transients-local-e2e.ts missing
+bun scripts/wp-cache-transients-local-e2e.ts set
+bun scripts/wp-cache-transients-local-e2e.ts get
 bun scripts/wp-cache-editorial-invalidation.ts seed
 bun scripts/wp-cache-editorial-invalidation.ts hit
 bun scripts/e2e-wordpress.ts publish
@@ -73,6 +84,9 @@ stop_site
 sleep 2
 start_site
 bun scripts/e2e-wordpress.ts verify
+bun scripts/wp-cache-transients-local-e2e.ts get
+bun scripts/wp-cache-transients-local-e2e.ts delete
+bun scripts/wp-cache-transients-local-e2e.ts missing
 bun scripts/wp-cache-editorial-rest.ts verify
 bun scripts/e2e-wordpress.ts delete
 bun scripts/e2e-wordpress.ts verify

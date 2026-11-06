@@ -1,13 +1,17 @@
-/** WordPress GPL-2.0-or-later core cache.php stays pinned and unmodified.
- * This optional drop-in is assembled from that cache.php plus our class below.
- * It is never installed unless the runtime has both an opt-in flag and binding.
+/** The opt-in hybrid cache patches only the pinned WordPress cache initializer.
+ * The bundled WordPress core cache.php is restored for normal operation.
+ * A separate object-cache.php drop-in requires that SAME patched core file,
+ * avoiding duplicate function definitions on repeated wp_start_object_cache().
+ * Only the microwp_public group persists across requests; WordPress Transients
+ * use the normal database fallback, not a request-local transient cache.
  */
 export const WORKER_OBJECT_CACHE_PHP = String.raw`<?php
 /**
  * microWP opt-in object-cache backend.
- * The pinned WordPress wp-includes/cache.php API is prepended at build time.
+ * The patched WordPress wp-includes/cache.php API is included once.
  * ONLY the opt-in microwp_public namespace uses the internal Worker.
- * All other WordPress groups retain normal request-local WP_Object_Cache.
+ * All other WordPress object-cache groups stay request-local; Transients
+ * retain WordPress's database-backed behavior.
  */
 class MicroWP_Worker_Object_Cache extends WP_Object_Cache {
     private const GROUP = 'microwp_public';
@@ -161,14 +165,28 @@ class MicroWP_Worker_Object_Cache extends WP_Object_Cache {
 }
 `;
 const ORIGINAL_INITIALIZER="$GLOBALS['wp_object_cache'] = new WP_Object_Cache();";
-export function buildWorkerObjectCacheDropin(coreCachePhp:string):string{
+const HYBRID_INITIALIZER=`$GLOBALS['wp_object_cache'] = new MicroWP_Worker_Object_Cache();
+	// Only microwp_public is persistent; WordPress transients must stay database-backed.
+	if ( function_exists( 'wp_using_ext_object_cache' ) ) {
+		wp_using_ext_object_cache( false );
+	}`;
+
+export interface HybridWordPressCacheFiles {
+  coreCachePhp:string;
+  objectCacheDropinPhp:string;
+}
+export function buildWorkerObjectCacheDropin(coreCachePhp:string):HybridWordPressCacheFiles {
  if(!coreCachePhp.startsWith("<?php") ||
     coreCachePhp.split(ORIGINAL_INITIALIZER).length!==2 ||
     !coreCachePhp.includes("function wp_cache_init()") ||
     !coreCachePhp.includes("function wp_cache_supports(")) {
   throw Error("Pinned WordPress object cache API unexpected; refuse opt-in");
  }
- return coreCachePhp.replace(ORIGINAL_INITIALIZER,
-  "$GLOBALS['wp_object_cache'] = new MicroWP_Worker_Object_Cache();") +
-  "\n" + WORKER_OBJECT_CACHE_PHP.replace(/^<\?php\s*/, "");
+ return {
+  coreCachePhp:coreCachePhp.replace(ORIGINAL_INITIALIZER,HYBRID_INITIALIZER),
+  objectCacheDropinPhp:String.raw`<?php
+require_once ABSPATH . WPINC . '/cache.php';
+`+
+    WORKER_OBJECT_CACHE_PHP.replace(/^<\?php\s*/, "")
+ };
 }

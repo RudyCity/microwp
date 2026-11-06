@@ -65,8 +65,8 @@ Status: public open-source experimental alpha v0.2.0-alpha.4; staging locked; NO
 ## Real WordPress PHP object-cache opt-in (2026-11-06)
 
 - `src/php/worker-object-cache-dropin.ts` derives a separate, opt-in WordPress object-cache.php from the pinned core cache.php; default staging/runtime must not enable it. Only install when `MICROWP_WORKER_CACHE_ENABLED=yes` and a trusted `REDIS_WORKER` Service Binding both exist.
-- Remote cache is restricted to the explicitly named `microwp_public` group, with **immutable revisioned keys**, classless unserialize and short TTL. Keep auth, users, options, transients and private data request-local until independently audited; never cache secrets.
-- A WordPress drop-in changes `wp_using_ext_object_cache()` behavior and thus Transients API persistence; this implementation is **not production-ready**. Require full WordPress editorial/REST/plugin/cache invalidation regression before enabling even for private staging.
+- Remote cache is restricted to the explicitly named `microwp_public` group, with **immutable revisioned keys**, classless unserialize and short TTL. Never send auth, users, options, transients or private data to the Worker cache; WordPress transients must stay database-backed in hybrid mode. Never cache secrets.
+- The hybrid initializer uses `wp_using_ext_object_cache(false)` to retain database-backed Transients API; real local WordPress tests now cover set/get/update/expiry/delete/restart. Broader plugin/multisite behavior and remote Free CPU remain unverified. Do not enable staging.
 - `wrangler.wp-cache-local-proof.jsonc` is local-only; NEVER deploy that proof Worker. Run `bun run wp-object-cache:build` (dry-run), `bun run wp-object-cache:e2e` and `bun run check`.
 - Explicitly dispose returned RPC results/stubs. No paid plan, billing or public WordPress route changes.
 
@@ -74,4 +74,11 @@ Status: public open-source experimental alpha v0.2.0-alpha.4; staging locked; NO
 
 - Source of truth is real PHP-WASM WordPress with its D1 SQL snapshot and R2 media. Only on opt-in `MICROWP_WORKER_CACHE_ENABLED=yes` plus a trusted Service Binding does the Durable Object invalidate `microwp_public` after successful D1/R2 persistence. Mutation methods are POST/PUT/PATCH/DELETE; failed RPC must never be reported as successful invalidation.
 - New local-only `wrangler.wp-cache-editorial-local.jsonc`, scripts `wp-cache:editorial-build` and `wp-cache:editorial-e2e` must never be remotely deployed. They use an isolated local D1 namespace, R2 bucket, random demo WordPress credentials, and loopback-only fixed-key diagnostics.
-- Editorial E2E covers install/login/post/category/option/media/restart and cache seed→hit→miss. This does not mean core WordPress cache groups are persisted, nor does it validate Transients API or Free Cloudflare CPU. **Do not enable live WordPress cache or public WordPress routes.**
+- Editorial E2E covers install/login/post/category/option/media/restart and cache seed→hit→miss. This does not mean core WordPress cache groups are persisted, and now verifies native transient/site-transient parity locally, but does not verify Free Cloudflare CPU. **Do not enable live WordPress cache or public WordPress routes.**
+
+## Hybrid WordPress Transients API parity (2026-11-06)
+
+- Persist only the explicit `microwp_public` group via Worker cache. WordPress `transient` and `site-transient` stay database-backed. The pinned core cache initializer sets `wp_using_ext_object_cache(false)` to avoid incorrectly advertising universal object-cache persistence.
+- Mount the minimal patched core initializer read-only when PHP-WASM starts; have the separate `object-cache.php` drop-in `require_once` that exact core file. Never change the shipped WordPress ZIP or write to mounted core files at request time.
+- The fixed transient REST proof plugin is injected only by the localhost-only Workerd Durable Object subclass, AFTER original WordPress auth-secret and D1 initialization; its endpoints require authenticated administrator permissions and REST nonces. Never deploy the local proof.
+- `bun run wp-cache:editorial-e2e` covers single/site transient set/get/update/expiry/delete/restart, public-cache invalidation and authentic WordPress editorial flows. Real Free CPU/memory, native D1 `wpdb` and broader plugin compatibility remain NO-GO blockers.
