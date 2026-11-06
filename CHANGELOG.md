@@ -2,6 +2,12 @@
 
 All notable user-visible changes to microWP are documented here.
 
+## Unreleased — Private Free DO remote evidence hardening and D1 options conformance (2026-11-06)
+
+- Strengthen the isolated Free CPU/PHP/WordPress Durable Object canary with per-request correlation IDs across gateway/DO, strict fixed tasks, bounded responses and no false CPU/memory claims. The new remote validator intentionally requires the matching updated canary protocol; no remote deploy or secret provisioning occurred.
+- Add an experimental, non-installed single-query WordPress `get_option()` translator to the existing private, site-scoped structured D1 SELECT protocol with real SQLite binding and isolation tests. Reject all other SQL instead of allowing an unsafe fallback.
+- Keep Cloudflare staging/private gates unchanged; genuine Free DO CPU/memory and full `wpdb` compatibility remain production blockers.
+
 ## Unreleased — Private cache failover, bounded D1 mutations and Free CPU audit (2026-11-06)
 
 - Add local-only real WordPress PHP-WASM E2E that injects cache Service Binding exceptions, verifies authoritative D1 writes survive, then restarts against a recovered Worker cache and proves hit/invalidation and WordPress transients again. No deployed cache Worker was mutated.
