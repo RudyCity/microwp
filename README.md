@@ -120,6 +120,10 @@ A dedicated **Cloudflare Worker + one Durable Object per site** now implements t
 
 This is **not** a full Redis engine, Redis TCP/RESP protocol or a drop-in replacement for the WordPress Redis Object Cache plugin. A PHP-WASM object-cache bridge and correct WordPress invalidation still need separate validation before enabling the cache for live WordPress. This does not itself solve WordPress `exceededCpu`. Details: [Worker-only Redis-like cache design and safety](docs/reports/2026-11-06-microwp-worker-only-redis-cache.md).
 
+## WordPress D1 autoload in one transactional batch (experimental)
+
+A separate, **non-installed** native D1 prototype now uses Cloudflare `D1.batch()` for a single transactional read of the pinned WordPress autoload options query. It prepares 11 site-scoped SELECTs in one batch: ten 50-option pages and one mandatory overflow check. It refuses 501+ options, unexpectedly large values, malformed rows and untrusted scope/query text rather than serving incomplete `alloptions`. Tests include a **real local Cloudflare Workerd D1 binding**, not only Bun SQLite mocks. `bun run d1:atomic-e2e` reproduces this proof. The batch contains 11 D1 queries, within the Free limit of 50 queries per invocation, but it does **not** prove total WordPress Free-tier CPU, daily quota, or complete `wpdb` readiness. [Atomic D1 autoload proof](docs/reports/2026-11-06-microwp-d1-atomic-autoload-batch-proof.md).
+
 ## Verified, bounded WordPress autoload option reads (experimental)
 
 The non-installed private D1 prototype can now **read a complete bounded autoload set or refuse the result entirely**. A trusted in-process D1 callback collects up to 500 options in deterministic 50-row pages, probes for overflow, and compares two full passes. It rejects 501+ options, damaged responses, mismatched request IDs, oversized values, out-of-order/duplicate keys and many forms of concurrent data drift. Results use frozen null-prototype option maps. This is **not a transactional snapshot** and does not install a WordPress `wpdb` driver. See [autoload complete-read proof](docs/reports/2026-11-06-microwp-d1-autoload-complete-read-proof.md).

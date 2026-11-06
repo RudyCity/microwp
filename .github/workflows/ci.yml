@@ -32,6 +32,8 @@ jobs:
         run: bun run durable:build
       - name: Staging bundle with D1 and R2 bindings (dry-run only)
         run: bun run staging:build
+      - name: Private D1 transactional autoload with real local Workerd D1
+        run: bun run d1:atomic-e2e
       - name: Real WordPress E2E in Cloudflare workerd
         run: bash scripts/e2e-local.sh
       - name: Free Durable Object WordPress canary bundle (dry-run only)

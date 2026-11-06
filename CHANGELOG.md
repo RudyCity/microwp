@@ -2,6 +2,12 @@
 
 All notable user-visible changes to microWP are documented here.
 
+## Unreleased — Transactional private D1 autoload options batch (2026-11-06)
+
+- Add a private, non-installed WordPress 7.1.4 autoload read prototype that executes 11 prepared, site-scoped SELECT queries inside **one D1 `batch()` SQL transaction** rather than two independently dispatched verification passes.
+- Cap the read at 500 options, 2,048 bytes per value, 256 KiB total, 64 KiB per page, and mandatory 501st-row overflow detection. Refuse incomplete or malformed pages, invalid scope/query, and oversized data; return a frozen null-prototype map.
+- Verify real Cloudflare local Workerd D1 binding and transactional batch API with isolated site-A/site-B fixtures, post-commit changes, and 501-row fail-closed behavior. Add `bun run d1:atomic-e2e` to Linux CI. No production native `wpdb`, remote Cloudflare D1/R2, billing or public route changes.
+
 ## Unreleased — Bounded complete WordPress autoload reads with drift checks (2026-11-06)
 
 - Add a private, experimental complete-read layer for the pinned WordPress `wp_load_alloptions()` query: at most 500 options, ten 50-row pages, a mandatory overflow probe on a full final page, and two verification passes.

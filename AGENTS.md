@@ -107,3 +107,10 @@ Status: public open-source experimental alpha v0.2.0-alpha.4; staging locked; NO
 
 - `src/php/d1-wpdb-conformance/options-complete.ts` is a **private, non-installed** compatibility helper. It must fail closed if an autoload read is incomplete, truncated, oversized, inconsistent between verification passes or unauthorized. A fixed 500-option limit with an overflow probe prevents silent truncation. The complete reader uses at most 22 D1 SELECT invocations for its two-pass verification; it must not be treated as an atomic snapshot.
 - Never serve a partial result as WordPress `alloptions` or silently activate the reader in `wp-content/db.php`. WordPress 7.1.4 options compatibility, concurrent writes and true transactional consistency require a separate migration/proof plan. The live WordPress PHP-WASM/D1 snapshot runtime and remote Cloudflare staging remain unchanged. Code, tests, reports, commit text and agent instructions must be in English.
+
+## Private D1 transactional autoload read prototype (2026-11-06)
+
+- The experimental `src/php/d1-wpdb-conformance/options-atomic.ts` uses one trusted private D1 `batch()` containing 11 prepared SELECT statements. D1 documents this batch as a SQL transaction; never replace it with separate `all()` or multi-batch reads and then claim an atomic snapshot.
+- This helper is **not** an installed `wpdb` adapter. Its table and site scope are host-owned, never supplied through PHP/HTTP; projection limits prevent oversized option data from being materialized as unbounded JS strings. Refuse 501+ options, large values and malformed/partial results. Only WordPress's pinned autoload query is allowed.
+- `bun run d1:atomic-e2e` runs a separate `microwp-d1-atomic-options-local-only` Workerd Worker and placeholder D1 binding at localhost; it must **never** be deployed. D1 Free has 50 queries per invocation: each batch contains 11 queries, not one. Include daily read quotas, full WordPress SQL compatibility and remote CPU/memory in release gates.
+- All code, docs, tests, comments, prompts and commit messages must be English. Existing shared checkout only; never create a new worktree.
