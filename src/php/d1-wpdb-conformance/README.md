@@ -37,3 +37,10 @@ Tests: `bun test tests/d1-protocol-bounded-in.test.ts tests/d1-wpdb-autoload-con
 `options-atomic.ts` executes 11 prepared SELECT statements in one Cloudflare D1 SQL transaction, using `D1Database.batch()`. Site identity and table are private trusted configuration. It fails closed on 501+ options, oversized/invalid rows and any batch error. This is stronger than the earlier two-pass consistency comparison; it does not install WordPress `wpdb` and does not guarantee transactionality across separate WordPress D1/R2/cache resources. The 11 statements count as 11 queries toward the Free 50-query-per-invocation limit.
 
 Run `bun run d1:atomic-e2e` for a real Workerd D1 binding test, or `bun test tests/d1-wpdb-atomic-autoload.test.ts` for isolated failure cases. See [transactional D1 autoload report](../../../docs/reports/2026-11-06-microwp-d1-atomic-autoload-batch-proof.md).
+
+
+## Single-query D1 autoload read (experimental)
+
+options-single.ts is an opt-in, non-installed alternative that executes one prepared D1 all() SELECT with a 501-row overflow witness and trusted site scope. It rejects malformed or oversized results and returns a frozen null-prototype options map for at most 500 entries. Unlike the 11-SELECT transactional batch, one SQLite statement sees a consistent statement snapshot while consuming one query; it can return a larger D1 result and **does not** establish WordPress wpdb completeness, Free CPU/memory fitness, or R2/cache atomicity. Never activate this helper in production.
+
+Run bun run d1:single-e2e for an isolated local Workerd D1 proof or bun test tests/d1-wpdb-single-autoload.test.ts tests/d1-wpdb-single-config.test.ts. See [single-query proof report](../../../docs/reports/2026-11-06-microwp-d1-single-query-autoload-proof.md).
