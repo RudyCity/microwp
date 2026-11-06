@@ -61,3 +61,11 @@ Status: public open-source experimental alpha v0.2.0-alpha.4; staging locked; NO
 - The dedicated `src/worker-cache/` Worker must remain `workers_dev:false` without public routes. Other Workers access it only through trusted `REDIS_WORKER` Service Binding RPC; site IDs are server-controlled, never from untrusted HTTP input.
 - The Durable Object volatile Map cache is disposable (TTL/LRU, 8 MiB/1,024 keys). Never cache auth/session/credentials, WordPress user-private data or authoritative content; a cache miss must safely fall back to the original database.
 - Run `bun run worker-cache:build`, `bun run worker-cache:e2e` and `bun run check`. The Worker is standalone; no implicit PHP object-cache.php install, no billing changes and no false claim of full Redis protocol compatibility.
+
+## Real WordPress PHP object-cache opt-in (2026-11-06)
+
+- `src/php/worker-object-cache-dropin.ts` derives a separate, opt-in WordPress object-cache.php from the pinned core cache.php; default staging/runtime must not enable it. Only install when `MICROWP_WORKER_CACHE_ENABLED=yes` and a trusted `REDIS_WORKER` Service Binding both exist.
+- Remote cache is restricted to the explicitly named `microwp_public` group, with **immutable revisioned keys**, classless unserialize and short TTL. Keep auth, users, options, transients and private data request-local until independently audited; never cache secrets.
+- A WordPress drop-in changes `wp_using_ext_object_cache()` behavior and thus Transients API persistence; this implementation is **not production-ready**. Require full WordPress editorial/REST/plugin/cache invalidation regression before enabling even for private staging.
+- `wrangler.wp-cache-local-proof.jsonc` is local-only; NEVER deploy that proof Worker. Run `bun run wp-object-cache:build` (dry-run), `bun run wp-object-cache:e2e` and `bun run check`.
+- Explicitly dispose returned RPC results/stubs. No paid plan, billing or public WordPress route changes.

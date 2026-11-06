@@ -1,0 +1,12 @@
+{
+ "$schema":"./node_modules/wrangler/config-schema.json",
+ "name":"microwp-wp-cache-local-proof",
+ "main":"src/probes/wp-cache-local-proof.ts",
+ "compatibility_date":"2026-11-04",
+ "workers_dev":false,
+ "vars":{"MICROWP_WORKER_CACHE_ENABLED":"yes"},
+ "services":[{"binding":"REDIS_WORKER","service":"microwp-worker-cache"}],
+ "durable_objects":{"bindings":[{"name":"WP_CACHE_PROOF_DO","class_name":"WPObjectCacheProofDO"}]},
+ "migrations":[{"tag":"v1","new_sqlite_classes":["WPObjectCacheProofDO"]}],
+ "observability":{"enabled":false}
+}

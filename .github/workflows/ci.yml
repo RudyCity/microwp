@@ -42,3 +42,7 @@ jobs:
         run: bun run worker-cache:build
       - name: Service Binding and Redis-like cache E2E in two local Workers
         run: bun run worker-cache:e2e
+      - name: Opt-in WordPress object-cache drop-in bundle (dry-run only)
+        run: bun run wp-object-cache:build
+      - name: Real PHP-WASM WordPress cache group invalidation in local DO
+        run: bun run wp-object-cache:e2e

@@ -30,3 +30,6 @@ dist-free-do-probe/
 
 # Dedicated Redis-like Worker dry-run build
 dist-worker-cache/
+
+# Local-only WordPress PHP object cache proof bundle
+dist-wp-cache-proof/

@@ -22,6 +22,10 @@ export interface MediaR2 {
 }
 export interface ServiceBinding { fetch(request: Request): Promise<Response> }
 export interface Env {
+  /** Dedicated internal Service Binding RPC, never exposed over HTTP. */
+  REDIS_WORKER?: import("./worker-cache/client").CacheBinding;
+  /** Opt-in for object-cache drop-in. Disabled unless exactly "yes". */
+  MICROWP_WORKER_CACHE_ENABLED?: string;
   ASSETS?: ServiceBinding;
   MEDIA?: MediaR2;
   /** Cloudflare D1: authoritative SQLite snapshot store in D1 bridge mode. */

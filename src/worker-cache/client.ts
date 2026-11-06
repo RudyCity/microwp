@@ -2,6 +2,7 @@
  * Site identity is constructed from a server-owned value, NOT user HTTP input.
  */
 import {CACHE_LIMITS,parseCacheCommand,validSite,type CacheCommand,type CacheResult} from "./protocol";
+import {detachCacheRPCResult,disposeCacheRPC} from "./rpc-lifecycle";
 export interface CacheBinding{execute(command:CacheCommand):Promise<CacheResult>}
 export class WorkerRedisClient{
  constructor(private readonly binding:CacheBinding,private readonly site:string){
@@ -10,7 +11,11 @@ export class WorkerRedisClient{
  private async call(raw:Record<string,unknown>):Promise<CacheResult>{
   const command=parseCacheCommand({version:1,site:this.site,...raw});
   if(!command)throw Error("Invalid cache command");
-  return this.binding.execute(command);
+  const pending=this.binding.execute(command);
+  try{
+   const response=await pending;
+   return detachCacheRPCResult(response);
+  }finally{disposeCacheRPC(pending)}
  }
  async get(group:string,key:string):Promise<string|null>{
   const result=await this.call({op:"get",group,key});

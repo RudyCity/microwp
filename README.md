@@ -120,6 +120,16 @@ A dedicated **Cloudflare Worker + one Durable Object per site** now implements t
 
 This is **not** a full Redis engine, Redis TCP/RESP protocol or a drop-in replacement for the WordPress Redis Object Cache plugin. A PHP-WASM object-cache bridge and correct WordPress invalidation still need separate validation before enabling the cache for live WordPress. This does not itself solve WordPress `exceededCpu`. Details: [Worker-only Redis-like cache design and safety](docs/reports/2026-11-06-microwp-worker-only-redis-cache.md).
 
+## WordPress `wp_cache_*` → dedicated Worker cache (opt-in, local proof)
+
+The PHP-WASM runtime now supports a **disabled-by-default** object-cache drop-in. It preserves WordPress's pinned `wp_cache_*` API and sends only the explicit, immutable, revision-keyed `microwp_public` group to the internal cache Worker via PHP→JavaScript→Service Binding. Other WordPress cache groups stay request-local; no user/session/private data is sent to the Worker cache. The caller never accepts an HTTP-supplied site identity.
+
+- `bun run wp-object-cache:build` is a dry-run only. `bun run wp-object-cache:e2e` proves cross-request cache hits, invalidation and real WordPress installer execution **inside a local Durable Object**, while public admin routes remain blocked.
+- The existing staging does **not** have the Service Binding or the opt-in flag, and was not changed. This is not a general Redis protocol or full WordPress Redis Object Cache drop-in.
+- WordPress Transients API and broader installed site/editorial flows need independent verification before this is safe for staging. **Production remains NO-GO.**
+
+See [object-cache bridge implementation, limitations and evidence](docs/reports/2026-11-06-microwp-wordpress-object-cache-bridge.md).
+
 ## Real WordPress inside Free Durable Object — protected CPU canary
 
 **The production target remains real WordPress/PHP server-side on Cloudflare Free, NOT a static-HTML replacement.** A separate isolated service is now available for verifying the CPU limit of the actual Durable Object invocation:

@@ -5,6 +5,7 @@
 import {DurableObject,WorkerEntrypoint} from "cloudflare:workers";
 import {BoundedCacheStore} from "./store";
 import {parseCacheCommand,type CacheResult} from "./protocol";
+import {detachCacheRPCResult,disposeCacheRPC} from "./rpc-lifecycle";
 interface CacheEnv{CACHE_DO:DurableObjectNamespace<MicroWPWorkerCacheDO>}
 const INVALID:CacheResult={ok:false,error:"INVALID_COMMAND"};
 export class MicroWPWorkerCacheDO extends DurableObject<CacheEnv>{
@@ -24,7 +25,14 @@ export default class MicroWPWorkerCache extends WorkerEntrypoint<CacheEnv>{
   if(!command)return INVALID;
   try{
    const id=this.env.CACHE_DO.idFromName("microwp-cache:"+command.site);
-   return await this.env.CACHE_DO.get(id).execute(command);
+   const stub=this.env.CACHE_DO.get(id);
+   try{
+    const pending=stub.execute(command);
+    try{
+     const response=await pending;
+     return detachCacheRPCResult(response);
+    }finally{disposeCacheRPC(pending)}
+   }finally{disposeCacheRPC(stub)}
   }catch{
    return {ok:false,error:"UNAVAILABLE"};
   }

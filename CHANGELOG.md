@@ -2,6 +2,14 @@
 
 All notable user-visible changes to microWP are documented here.
 
+## Unreleased — Opt-in WordPress PHP object-cache Service Binding bridge (2026-11-06)
+
+- Build the `object-cache.php` drop-in from the pinned official WordPress core Cache API without changing the default WordPress installation.
+- Add tightly scoped PHP-WASM `post_message_to_js` bridge to the existing internal cache Worker for the `microwp_public` immutable revisioned keys only; refuse arbitrary site identity, auth/user cache groups and arbitrary PHP/SQL.
+- Prove real PHP-WASM WordPress installer, cache hits across PHP requests, and `wp_cache_flush_group` invalidation inside a local Durable Object plus Service Binding.
+- Explicitly detach/dispose Cloudflare RPC object results and stubs; add isolated lifecycle tests and CI local E2E.
+- Default staging remains unchanged, and cache is **not** enabled for public WordPress. Transients and editorial/plugin compatibility plus actual Free CPU remain blocking.
+
 ## Unreleased — Dedicated Redis-like Worker cache (2026-11-06)
 
 - Add a separate Redis-like cache **inside Cloudflare Workers/Durable Objects only**, with no third-party Redis, no inbound TCP endpoint and no paid-plan CPU increase.

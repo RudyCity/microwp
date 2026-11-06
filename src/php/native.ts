@@ -7,6 +7,8 @@ import { wordpressConfig, mayServePreview } from "./config";
 import {flushUploads,hydrateUploads,finalizeUploadDeletes} from "./uploads";
 import {D1_BRIDGE_READINESS_MESSAGE,handleD1BridgeReadinessMessage} from "./d1-message-bridge";
 import {readBoundedRequestBody} from "./bounded-body";
+import {buildWorkerObjectCacheDropin} from "./worker-object-cache-dropin";
+import {handleObjectCacheMessage,OBJECT_CACHE_MESSAGE_PREFIX} from "./worker-object-cache-bridge";
 import type { Env, PhpHandler } from "../types";
 
 let init: Promise<PHP> | undefined;
@@ -17,7 +19,7 @@ const pendingMediaDeletes=new Set<string>();
 let storageUnsafe=false;
 export function nativeStats() {return {runtime:"php-8.4.27-wasm",mounted:stats!==null,files:stats?.files??0,unpackedBytes:stats?.bytes??0,mountMs:stats?.elapsedMs??0,loadedFiles:stats?.loadedFiles??0,loadedBytes:stats?.loadedBytes??0};}
 
-async function getPHP(origin:string, env:Env): Promise<PHP> {
+export async function getPHP(origin:string, env:Env): Promise<PHP> {
   if (!init) init = (async () => {
     const staging=env.MICROWP_STAGING_MODE==="isolated-probe-only";
     const start=performance.now();
@@ -35,6 +37,12 @@ async function getPHP(origin:string, env:Env): Promise<PHP> {
     if(staging)console.info("microWP isolated canary: ZIP_READY_MS",Math.round(performance.now()-start));
     php.mkdir("/private");
     php.writeFile("/www/wp-config.php",wordpressConfig(origin,env));
+    if(env.MICROWP_WORKER_CACHE_ENABLED==="yes"&&env.REDIS_WORKER){
+      // Explicit private opt-in only. Core WordPress cache API stays pinned and
+      // all existing non-opted groups retain request-local WP cache semantics.
+      const coreCache=php.readFileAsText("/www/wp-includes/cache.php");
+      php.writeFile("/www/wp-content/object-cache.php",buildWorkerObjectCacheDropin(coreCache));
+    }
     if(staging)console.info("microWP isolated canary: CONFIG_READY_MS",Math.round(performance.now()-start));
     return php;
   })().catch((e)=>{init=undefined;stats=null;throw e});
@@ -74,7 +82,14 @@ export const nativePhpHandler:PhpHandler = async(request, env) => {
       if (url.pathname.toLowerCase().endsWith(".php")) scriptPath="/www"+url.pathname;
       if (url.pathname.startsWith("/wp-admin/") && url.pathname.endsWith("/")) scriptPath="/www/wp-admin/index.php";
       if(!php.fileExists(scriptPath)) return new Response("Not Found",{status:404});
-      const output=await php.run({
+      const useObjectCache=env.MICROWP_WORKER_CACHE_ENABLED==="yes"&&!!env.REDIS_WORKER;
+      const stopCache=useObjectCache ? php.onMessage(async message=>{
+        if(!message.startsWith(OBJECT_CACHE_MESSAGE_PREFIX))return "";
+        return handleObjectCacheMessage(message,env.REDIS_WORKER!,"microwp_single_site");
+      }):undefined;
+      let output:Awaited<ReturnType<PHP["run"]>>;
+      try {
+      output=await php.run({
         scriptPath,
         relativeUri:url.pathname+url.search,
         protocol:url.protocol.slice(0,-1),
@@ -91,6 +106,7 @@ export const nativePhpHandler:PhpHandler = async(request, env) => {
           SCRIPT_NAME:scriptPath.slice(4),
         }
       });
+      } finally { await stopCache?.(); }
       try { await flushUploads(php,env,uploaded,env.MICROWP_DEFER_MEDIA_DELETES==="yes"?pendingMediaDeletes:undefined); }
       catch(err) { storageUnsafe=true; throw err; }
       const headers=new Headers();
