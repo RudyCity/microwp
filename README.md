@@ -120,6 +120,10 @@ A dedicated **Cloudflare Worker + one Durable Object per site** now implements t
 
 This is **not** a full Redis engine, Redis TCP/RESP protocol or a drop-in replacement for the WordPress Redis Object Cache plugin. A PHP-WASM object-cache bridge and correct WordPress invalidation still need separate validation before enabling the cache for live WordPress. This does not itself solve WordPress `exceededCpu`. Details: [Worker-only Redis-like cache design and safety](docs/reports/2026-11-06-microwp-worker-only-redis-cache.md).
 
+## Verified, bounded WordPress autoload option reads (experimental)
+
+The non-installed private D1 prototype can now **read a complete bounded autoload set or refuse the result entirely**. A trusted in-process D1 callback collects up to 500 options in deterministic 50-row pages, probes for overflow, and compares two full passes. It rejects 501+ options, damaged responses, mismatched request IDs, oversized values, out-of-order/duplicate keys and many forms of concurrent data drift. Results use frozen null-prototype option maps. This is **not a transactional snapshot** and does not install a WordPress `wpdb` driver. See [autoload complete-read proof](docs/reports/2026-11-06-microwp-d1-autoload-complete-read-proof.md).
+
 ## Experimental native D1 support for WordPress autoloaded options
 
 The private D1 protocol now supports a **bounded prepared `SELECT WHERE ... IN (...)`** operation, and the non-installed WordPress query translator recognizes `wp_load_alloptions()` with the four official autoload values. Strict protocol/SQLite tests verify server-owned site isolation, bound parameters, deterministic 50-row pages and rejection of arbitrary SQL. The full WordPress `wpdb` implementation remains unfinished, including consistent multi-page loading and fallback behavior; do not enable the translator in live WordPress. See [autoload options D1 conformance](docs/reports/2026-11-06-microwp-d1-autoload-options-conformance.md).

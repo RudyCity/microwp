@@ -2,6 +2,12 @@
 
 All notable user-visible changes to microWP are documented here.
 
+## Unreleased — Bounded complete WordPress autoload reads with drift checks (2026-11-06)
+
+- Add a private, experimental complete-read layer for the pinned WordPress `wp_load_alloptions()` query: at most 500 options, ten 50-row pages, a mandatory overflow probe on a full final page, and two verification passes.
+- Refuse incomplete/modified results, duplicate or unordered option keys, invalid D1 responses, oversized option values/aggregate results and SQL outside the strictly pinned query template. Return immutable null-prototype option records to avoid prototype pollution.
+- Real SQLite + private D1 runtime adapter tests cover 65/500/501 options, cross-site exclusion, edits and inserts during paging, oversized payloads, malformed envelopes and staging isolation. This is **not an atomic snapshot or installed `wpdb`**; production and remote Free CPU/memory remain NO-GO.
+
 ## Unreleased — Native D1 structured autoload options SELECT prototype (2026-11-06)
 
 - Extend the private D1 SELECT protocol with one strictly bounded, scalar `whereIn` predicate (1–8 distinct non-null values) and prepared bindings, preserving server-owned site filtering, allowlisted identifiers, and the existing 20-binding limit.

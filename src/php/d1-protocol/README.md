@@ -112,3 +112,7 @@ See [experimental mutation safety report](../../docs/reports/2026-11-06-microwp-
 ## Pinned WordPress autoload query prototype (2026-11-06)
 
 The private query translator at [options-autoload.ts](../d1-wpdb-conformance/options-autoload.ts) recognizes the concrete autoload query in the pinned `wp-includes/option.php`, restricted to the four official autoload values and subsets. It produces deterministic bounded pages of 50 D1 rows and requires a trusted site-owned table mapping, with all SQL values bound. The prototype **cannot be used as a complete WordPress alloptions loader** until full pagination, snapshot consistency, fallback semantics, and oversized result behavior are verified. No production WordPress driver is installed. See [autoload conformance report](../../../docs/reports/2026-11-06-microwp-d1-autoload-options-conformance.md).
+
+## Verified autoload paging (non-atomic prototype)
+
+The private WordPress `wp_load_alloptions()` reader at [options-complete.ts](../d1-wpdb-conformance/options-complete.ts) refuses incomplete results rather than returning a truncated options cache. It performs two bounded page reads with an extra overflow probe if the last permitted data page is full and checks data equality between passes. A passing result is **not** proof of a transactionally consistent snapshot. No public endpoint, production WordPress database integration, or remote D1 migration is enabled. See [complete-read proof](../../../docs/reports/2026-11-06-microwp-d1-autoload-complete-read-proof.md).
