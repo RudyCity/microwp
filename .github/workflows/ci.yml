@@ -38,3 +38,7 @@ jobs:
         run: bun run canary:build
       - name: WordPress PHP executes in a local Durable Object (private canary)
         run: bun run canary:e2e
+      - name: Dedicated Redis-like Worker cache bundle (dry-run only)
+        run: bun run worker-cache:build
+      - name: Service Binding and Redis-like cache E2E in two local Workers
+        run: bun run worker-cache:e2e

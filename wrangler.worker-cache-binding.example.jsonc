@@ -1,0 +1,5 @@
+{
+ "note":"EXAMPLE ONLY. Add the services entry to the calling microWP Worker config after deploying the dedicated cache service.",
+ "services":[{"binding":"REDIS_WORKER","service":"microwp-worker-cache"}],
+ "vars":{"MICROWP_CACHE_SITE":"microwp_single_site"}
+}

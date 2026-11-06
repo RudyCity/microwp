@@ -109,6 +109,17 @@ The CPU/DB critical-path implementation is recorded in [the detailed Stage-3 out
 
 > **Product direction clarification (2026-11-06):** The user requires **real server-side WordPress PHP on Cloudflare Workers Free**, not static HTML publication. The Free static preview documented below is an **unused, disabled experiment**, not the planned production replacement. See [research on running actual WordPress in Workers Free](docs/research/2026-11-06-real-wordpress-cloudflare-workers-free.md) for the Durable Objects CPU-limit ambiguity, JSPI/OpCache possibilities and verification gates. Full WordPress remains production NO-GO.
 
+## Redis-like cache inside Cloudflare Workers (no Redis server)
+
+A dedicated **Cloudflare Worker + one Durable Object per site** now implements the needed internal Redis-style cache operations (`GET`, `SET`, `ADD`, `DEL`, `INCR`, `EXPIRE`, `TTL` and group/site invalidation). It uses **Service Binding RPC exclusively**; the dedicated Worker does not expose a public HTTP route or a TCP Redis endpoint. **No Upstash, external database or paid plan.**
+
+- `bun run worker-cache:build` — dry-run only.
+- `bun run worker-cache:e2e` — two real local Worker processes communicating via Service Binding and site-specific Durable Objects.
+- `wrangler.worker-cache.jsonc` — isolated Worker with `workers_dev:false` and no public routes. A separate example binding is at `wrangler.worker-cache-binding.example.jsonc`.
+- Hard limit per site: **8 MiB logical cache, 1,024 keys, 64 KiB/string, TTL up to one day**. Cache is volatile, LRU, and may be lost at any time on DO eviction; WordPress data must remain authoritative in D1.
+
+This is **not** a full Redis engine, Redis TCP/RESP protocol or a drop-in replacement for the WordPress Redis Object Cache plugin. A PHP-WASM object-cache bridge and correct WordPress invalidation still need separate validation before enabling the cache for live WordPress. This does not itself solve WordPress `exceededCpu`. Details: [Worker-only Redis-like cache design and safety](docs/reports/2026-11-06-microwp-worker-only-redis-cache.md).
+
 ## Real WordPress inside Free Durable Object — protected CPU canary
 
 **The production target remains real WordPress/PHP server-side on Cloudflare Free, NOT a static-HTML replacement.** A separate isolated service is now available for verifying the CPU limit of the actual Durable Object invocation:

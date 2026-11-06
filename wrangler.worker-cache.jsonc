@@ -1,0 +1,10 @@
+{
+ "$schema":"./node_modules/wrangler/config-schema.json",
+ "name":"microwp-worker-cache",
+ "main":"src/worker-cache/index.ts",
+ "compatibility_date":"2026-11-04",
+ "workers_dev":false,
+ "durable_objects":{"bindings":[{"name":"CACHE_DO","class_name":"MicroWPWorkerCacheDO"}]},
+ "migrations":[{"tag":"v1","new_sqlite_classes":["MicroWPWorkerCacheDO"]}],
+ "observability":{"enabled":false}
+}

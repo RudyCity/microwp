@@ -2,6 +2,13 @@
 
 All notable user-visible changes to microWP are documented here.
 
+## Unreleased — Dedicated Redis-like Worker cache (2026-11-06)
+
+- Add a separate Redis-like cache **inside Cloudflare Workers/Durable Objects only**, with no third-party Redis, no inbound TCP endpoint and no paid-plan CPU increase.
+- Strict RPC Service Binding, site-sharded cache, bounded 8 MiB/1,024 keys, TTL/LRU, atomic counters and group/site invalidation; deny arbitrary SQL/script execution and common sensitive cache namespaces.
+- Add typed server-owned site client, unit tests, local dual-Worker RPC E2E and CI build/E2E gates.
+- Cache is volatile and has not been enabled for WordPress PHP object cache. WordPress/PHP-WASM/D1/R2 remain the source of truth. No public cache route or live WordPress changes.
+
 ## Unreleased — Actual server-side WordPress inside a Free Durable Object (2026-11-06)
 
 - Research and test the **requested full WordPress/PHP runtime**, not the abandoned static HTML alternative.

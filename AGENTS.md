@@ -54,3 +54,10 @@ Status: public open-source experimental alpha v0.2.0-alpha.4; staging locked; NO
 - The canary performs fixed, private, bounded CPU work, real PHP-WASM PDO probes and a fixed WordPress installer probe **inside Durable Object fetch()**. Never accept arbitrary PHP, SQL, WordPress paths or direct public access.
 - Reproducible local verification is `bun run canary:e2e`. Successful local HTTP 200 is NOT evidence of Cloudflare Free CPU fitness.
 - The actual canary Worker is deployed but not authorized for a remote probe because the secret-install action was blocked; do not bypass security checks or expose its secret. After the operator installs a key, run the explicit remote probe, then inspect actual DO invocation `cpuTime`, outcome and 128 MB isolate memory.
+
+## Dedicated Worker Redis-like cache (2026-11-06)
+
+- User requested Redis functionality hosted **entirely within Cloudflare Workers Free**, with **no external Redis provider**. This is a bounded internal Redis-like cache, NOT a Redis TCP/RESP server.
+- The dedicated `src/worker-cache/` Worker must remain `workers_dev:false` without public routes. Other Workers access it only through trusted `REDIS_WORKER` Service Binding RPC; site IDs are server-controlled, never from untrusted HTTP input.
+- The Durable Object volatile Map cache is disposable (TTL/LRU, 8 MiB/1,024 keys). Never cache auth/session/credentials, WordPress user-private data or authoritative content; a cache miss must safely fall back to the original database.
+- Run `bun run worker-cache:build`, `bun run worker-cache:e2e` and `bun run check`. The Worker is standalone; no implicit PHP object-cache.php install, no billing changes and no false claim of full Redis protocol compatibility.
